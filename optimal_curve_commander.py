@@ -8,8 +8,8 @@ import random
 # The card values should sum to 98 because we're always adding a Sol Ring
 # Note that the simulation code allows for card draw spells, but these were
 # now fixed at 0 in the optimization because early tests never favored them
-deck_size = 99
 commander_costs = [2, 4]
+deck_size = 100 - len(commander_costs)
 initial_rock = 10
 initial_1_cmc = 7
 initial_2_cmc = 10

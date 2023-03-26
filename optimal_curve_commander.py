@@ -1,5 +1,6 @@
-from typing import Generator
+from typing import Generator, Tuple, Dict
 from itertools import product
+from dataclasses import dataclass, replace
 import random
 
 # Manually adjust these parameters to set the deck type and an initial guess
@@ -19,6 +20,140 @@ initial_6_cmc = 0
 initial_land = 38
 initial_draw = 0
 debug_mode = False
+
+
+def nearby_values(start_value: int) -> Generator[int, None, None]:
+    for value in range(max(start_value - 1, 0), start_value + 2):
+        yield value
+
+
+CurveTuple = Tuple[int, int, int, int, int, int, int, int]
+
+
+@dataclass
+class Curve:
+    one: int
+    two: int
+    three: int
+    four: int
+    five: int
+    six: int
+    rock: int
+    draw: int
+    land: int
+
+    @classmethod
+    def fromtuple(cls, curve: CurveTuple) -> "Curve":
+        one, two, three, four, five, six, rock, land = curve
+        return cls(
+            one=one,
+            two=two,
+            three=three,
+            four=four,
+            five=five,
+            six=six,
+            rock=rock,
+            draw=0,
+            land=land,
+        )
+
+    def astuple(self) -> CurveTuple:
+        # ignore draw, currently it's always zero
+        return (
+            self.one,
+            self.two,
+            self.three,
+            self.four,
+            self.five,
+            self.six,
+            self.rock,
+            self.land,
+        )
+
+    def copy(self) -> "Curve":
+        return replace(self)
+
+    @property
+    def count(self):
+        return sum(self.astuple())
+
+    def distance_from(self, other: "Curve") -> int:
+        return sum(
+            abs(myvalue - othervalue)
+            for myvalue, othervalue in zip(self.astuple(), other.astuple())
+        )
+
+    def nearby_decks(self) -> Generator["Curve", None, None]:
+        ranges = (nearby_values(value) for value in self.astuple())
+        for curve in product(*ranges):
+            yield self.fromtuple(curve)
+
+    @property
+    def decklist(self) -> Dict[str, int]:
+        return {
+            "1 CMC": self.one,
+            "2 CMC": self.two,
+            "3 CMC": self.three,
+            "4 CMC": self.four,
+            "5 CMC": self.five,
+            "6 CMC": self.six,
+            "Rock": self.rock,
+            "Sol Ring": 1,
+            "Draw": self.draw,
+            "Land": self.land,
+        }
+
+    def brief_desc(self) -> str:
+        return (
+            str(self.one)
+            + ", "
+            + str(self.two)
+            + ", "
+            + str(self.three)
+            + ", "
+            + str(self.four)
+            + ", "
+            + str(self.five)
+            + ", "
+            + str(self.six)
+            + ", "
+            + str(self.rock)
+            + ", "
+            + str(self.land)
+        )
+
+    def full_desc(self) -> str:
+        return (
+            str(self.one)
+            + " one-drops, "
+            + str(self.two)
+            + " two, "
+            + str(self.three)
+            + " three, "
+            + str(self.four)
+            + " four, "
+            + str(self.five)
+            + " five, "
+            + str(self.six)
+            + " six, "
+            + str(self.rock)
+            + " Signet, 1 Sol Ring, "
+            + str(self.land)
+            + " lands "
+        )
+
+
+initial_curve = Curve(
+    one=initial_1_cmc,
+    two=initial_2_cmc,
+    three=initial_3_cmc,
+    four=initial_4_cmc,
+    five=initial_5_cmc,
+    six=initial_6_cmc,
+    rock=initial_rock,
+    draw=initial_draw,
+    land=initial_land,
+)
 
 
 def put_spells_on_bottom(hand, spells_remaining_to_bottom):
@@ -427,15 +562,7 @@ def run_one_sim():
 # Initialize local search algorithm
 # num_simulations = 10000
 num_simulations = 10
-best_one = initial_1_cmc
-best_two = initial_2_cmc
-best_three = initial_3_cmc
-best_four = initial_4_cmc
-best_five = initial_5_cmc
-best_six = initial_6_cmc
-best_rock = initial_rock
-best_land = initial_land
-best_draw = initial_draw
+best_curve = initial_curve.copy()
 previous_best_mana_spent = 0
 previous_sims_for_best_deck = 0
 sims_for_best_deck = 0
@@ -464,72 +591,27 @@ Number_sims = {}
 # current iterations with the ones that have already taken place prior.
 
 
-def bracket(best_value: int) -> Generator[int, None, None]:
-    for value in range(max(best_value - 1, 0), best_value + 2):
-        yield value
-
-
 while continue_searching:
     best_mana_spent = 0
     improvement_possible = False
-    best_curve = (
-        best_one,
-        best_two,
-        best_three,
-        best_four,
-        best_five,
-        best_six,
-        best_rock,
-        best_draw,
-        best_land,
-    )
-    ranges = (
-        bracket(best_one),
-        bracket(best_two),
-        bracket(best_three),
-        bracket(best_four),
-        bracket(best_five),
-        bracket(best_six),
-        bracket(best_rock),
-        [0],  # draw
-        # draw could vary initially, but was later fixed at 0 to
-        # greatly reduce optimization time
-        bracket(best_land),
-    )
-    for one, two, three, four, five, six, rock, draw, land in product(*ranges):
-        # We are now considering a new deck;
-        # is this actually in the neighborhood of the previous best deck?
-        curve = (one, two, three, four, five, six, rock, draw, land)
-        nr_changes = sum(
-            abs(value - best_value)
-            for value, best_value in zip(curve, best_curve)
-        )
+
+    for curve in best_curve.nearby_decks():
+        nr_changes = curve.distance_from(best_curve)
         if previous_sims_for_best_deck < num_simulations * 15:
-            in_neighborhood = sum(curve) == deck_size - 1 and nr_changes <= 2
+            in_neighborhood = curve.count == deck_size - 1 and nr_changes <= 2
         else:
-            in_neighborhood = sum(curve) == deck_size - 1
+            in_neighborhood = curve.count == deck_size - 1
         # Note that we check for deck_size -1
         # because Sol Ring is always part of
         # the deck
 
         if in_neighborhood:
-            decklist = {
-                "1 CMC": one,
-                "2 CMC": two,
-                "3 CMC": three,
-                "4 CMC": four,
-                "5 CMC": five,
-                "6 CMC": six,
-                "Rock": rock,
-                "Sol Ring": 1,
-                "Draw": draw,
-                "Land": land,
-            }
+            decklist = curve.decklist
 
-            if curve not in Estimation.keys():
-                Estimation[curve] = 0
-            if (curve) not in Number_sims.keys():
-                Number_sims[curve] = 0
+            if curve.astuple() not in Estimation.keys():
+                Estimation[curve.astuple()] = 0
+            if (curve.astuple()) not in Number_sims.keys():
+                Number_sims[curve.astuple()] = 0
 
             # If we know from previous
             # iterations that this deck is
@@ -538,35 +620,32 @@ while continue_searching:
             # more sims
             dont_bother = False
             if (
-                Number_sims[curve] > num_simulations * 5
-                and Estimation[curve] < 0.998 * previous_best_mana_spent
+                Number_sims[curve.astuple()] > num_simulations * 5
+                and Estimation[curve.astuple()]
+                < 0.998 * previous_best_mana_spent
             ):
                 dont_bother = True
             if (
-                Number_sims[curve] > num_simulations * 10
-                and Estimation[curve] < 0.999 * previous_best_mana_spent
+                Number_sims[curve.astuple()] > num_simulations * 10
+                and Estimation[curve.astuple()]
+                < 0.999 * previous_best_mana_spent
             ):
                 dont_bother = True
             if (
-                Number_sims[curve] > num_simulations * 20
-                and Estimation[curve] < 0.9995 * previous_best_mana_spent
+                Number_sims[curve.astuple()] > num_simulations * 20
+                and Estimation[curve.astuple()]
+                < 0.9995 * previous_best_mana_spent
             ):
                 dont_bother = True
 
             if not dont_bother:
                 total_mana_spent = 0.0
                 for _ in range(num_simulations):
-                    (
-                        mana_spent_in_sim,
-                        lucky,
-                    ) = run_one_sim()
-                    # Lucky is true for Sol
-                    # Ring on turn 1. This
-                    # could be used for
-                    # clever variance
+                    (mana_spent_in_sim, lucky) = run_one_sim()
+                    # Lucky is true for Sol Ring on turn 1. This
+                    # could be used for clever variance
                     # reduction techniques
-                    # But this part was cut
-                    # for time reasons
+                    # But this part was cut for time reasons
                     total_mana_spent += mana_spent_in_sim
                 average_mana_spent = round(
                     total_mana_spent / num_simulations,
@@ -574,85 +653,53 @@ while continue_searching:
                 )
                 # Add previous total sims to
                 # current number sims
-                previous_total_sims = Number_sims[curve]
-                Number_sims[curve] += num_simulations
-                # Take nr_sim-weighted
-                # combination of previous
-                # estimation and current
-                # estimation
-                previous_estimate = Estimation[curve]
-                Estimation[curve] = round(
+                previous_total_sims = Number_sims[curve.astuple()]
+                Number_sims[curve.astuple()] += num_simulations
+                # Take nr_sim-weighted combination of previous
+                # estimation and current estimation
+                previous_estimate = Estimation[curve.astuple()]
+                Estimation[curve.astuple()] = round(
                     (
                         previous_estimate * previous_total_sims
                         + average_mana_spent * num_simulations
                     )
-                    / Number_sims[curve],
+                    / Number_sims[curve.astuple()],
                     4,
                 )
 
-                current_deck_is_same_as_previous_best = (
-                    one == best_one
-                    and two == best_two
-                    and three == best_three
-                    and four == best_four
-                    and five == best_five
-                    and six == best_six
-                    and rock == best_rock
-                    and draw == best_draw
-                )
+                current_deck_is_same_as_previous_best = curve == best_curve
 
                 # Are we doing better than
                 # the previuos best deck?
-                if Estimation[curve] >= best_mana_spent:
+                if Estimation[curve.astuple()] >= best_mana_spent:
                     firstword = (
                         "Update!"
                         if current_deck_is_same_as_previous_best
                         else "Improv!"
-                        if Estimation[curve] >= previous_best_mana_spent
+                        if Estimation[curve.astuple()]
+                        >= previous_best_mana_spent
                         else "-------"
                     )
                     print(
                         "---"
                         + firstword
                         + "Deck "
-                        + str(one)
-                        + ", "
-                        + str(two)
-                        + ", "
-                        + str(three)
-                        + ", "
-                        + str(four)
-                        + ", "
-                        + str(five)
-                        + ", "
-                        + str(six)
-                        + ", "
-                        + str(rock)
-                        + ", "
-                        + str(land)
+                        + curve.brief_desc()
                         + " had "
                         + str(previous_estimate)
                         + "/"
                         + str(int(previous_total_sims))
                         + ", now "
-                        + str(Estimation[curve])
+                        + str(Estimation[curve.astuple()])
                         + "/"
-                        + str(int(Number_sims[curve]))
+                        + str(int(Number_sims[curve.astuple()]))
                     )
-                    best_mana_spent = Estimation[curve]
-                    new_best_one = one
-                    new_best_two = two
-                    new_best_three = three
-                    new_best_four = four
-                    new_best_five = five
-                    new_best_six = six
-                    new_best_rock = rock
-                    new_best_draw = draw
-                    new_best_land = land
-                    sims_for_best_deck = Number_sims[curve]
+                    best_mana_spent = Estimation[curve.astuple()]
+                    new_best_curve = curve.copy()
+                    sims_for_best_deck = Number_sims[curve.astuple()]
                 elif (
-                    Estimation[curve] < previous_best_mana_spent
-                    and Estimation[curve] > 0.998 * best_mana_spent
+                    Estimation[curve.astuple()] < previous_best_mana_spent
+                    and Estimation[curve.astuple()] > 0.998 * best_mana_spent
                 ):
                     firstword = (
                         "Update!"
@@ -663,41 +710,18 @@ while continue_searching:
                         "---"
                         + firstword
                         + "Deck "
-                        + str(one)
-                        + ", "
-                        + str(two)
-                        + ", "
-                        + str(three)
-                        + ", "
-                        + str(four)
-                        + ", "
-                        + str(five)
-                        + ", "
-                        + str(six)
-                        + ", "
-                        + str(rock)
-                        + ", "
-                        + str(land)
+                        + curve.brief_desc()
                         + " had "
                         + str(previous_estimate)
                         + "/"
                         + str(int(previous_total_sims))
                         + ", now "
-                        + str(Estimation[curve])
+                        + str(Estimation[curve.astuple()])
                         + "/"
-                        + str(int(Number_sims[curve]))
+                        + str(int(Number_sims[curve.astuple()]))
                     )
 
-    previous_still_best = (
-        new_best_one == best_one
-        and new_best_two == best_two
-        and new_best_three == best_three
-        and new_best_four == best_four
-        and new_best_five == best_five
-        and new_best_six == best_six
-        and new_best_rock == best_rock
-        and new_best_draw == best_draw
-    )
+    previous_still_best = new_best_curve == best_curve
     previous_best_mana_spent = best_mana_spent
     if previous_still_best and sims_for_best_deck > num_simulations * 20:
         continue_searching = False
@@ -705,57 +729,26 @@ while continue_searching:
         continue_searching = True
 
     # Move to the best option we've seen in the immediate neighborhood
-    best_one = new_best_one
-    best_two = new_best_two
-    best_three = new_best_three
-    best_four = new_best_four
-    best_five = new_best_five
-    best_six = new_best_six
-    best_rock = new_best_rock
-    best_draw = new_best_draw
-    best_land = new_best_land
+    best_curve = new_best_curve
 
     # However, check if we've seen a better option with reasonable sample
     # size in previous iterations; if so, override
-    for curve in Estimation.keys():
+    for curve_data in Estimation.keys():
+        curve = Curve.fromtuple(curve_data)
         if (
-            Estimation[curve] >= best_mana_spent
-            and Number_sims[curve] >= previous_sims_for_best_deck / 2
+            Estimation[curve.astuple()] >= best_mana_spent
+            and Number_sims[curve.astuple()] >= previous_sims_for_best_deck / 2
         ):
-            best_mana_spent = Estimation[curve]
-            (
-                best_one,
-                best_two,
-                best_three,
-                best_four,
-                best_five,
-                best_six,
-                best_rock,
-                best_draw,
-                best_land,
-            ) = curve
-            sims_for_best_deck = Number_sims[curve]
+            best_mana_spent = Estimation[curve.astuple()]
+            best_curve = curve
+            sims_for_best_deck = Number_sims[curve.astuple()]
 
     num_simulations += 1000
     previous_sims_for_best_deck = sims_for_best_deck
     print(
         "====>Deck: "
-        + str(best_one)
-        + " one-drops, "
-        + str(best_two)
-        + " two, "
-        + str(best_three)
-        + " three, "
-        + str(best_four)
-        + " four, "
-        + str(best_five)
-        + " five, "
-        + str(best_six)
-        + " six, "
-        + str(best_rock)
-        + " Signet, 1 Sol Ring, "
-        + str(best_land)
-        + " lands ==> "
+        + curve.full_desc()
+        + " ==> "
         + str(best_mana_spent)
         + "."
     )

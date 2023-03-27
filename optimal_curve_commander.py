@@ -2,7 +2,13 @@ from typing import Generator, Tuple, Dict, Union, List
 from itertools import product
 from dataclasses import dataclass, replace
 import random
+import logging
 
+logger = logging.getLogger()
+# to enable debug:
+logging.basicConfig(level=logging.DEBUG)
+
+logger.info("Logging...")
 # Manually adjust these parameters to set the deck type and an initial guess
 # for where to start searching
 # The card values should sum to 98 because we're always adding a Sol Ring
@@ -19,7 +25,7 @@ initial_5_cmc = 9
 initial_6_cmc = 0
 initial_land = 38
 initial_draw = 0
-debug_mode = False
+# debug_mode = False
 
 
 def nearby_values(start_value: int) -> Generator[int, None, None]:
@@ -348,29 +354,25 @@ def run_one_sim(
     draw_draw = 3  # Draw is 2 for Divination, 3 for Harmonize
 
     # Draw opening hands and mulligan
-    if debug_mode:
-        print("----------")
+    logger.debug("----------")
 
     for handsize in [(7, "free"), 7, 6, 5, 4]:
         # We may mull free, 7, 6, or 5 cards and keep every 4-card hand
         # Once we actually keep, the variable keephand will be set to True
         library = construct_library_then_shuffle(decklist)
         hand = construct_random_opening_hand(library)
-        if debug_mode:
-            print("Opening hand:", hand)
+        logger.debug(f"Opening hand: {hand}")
         hand = put_cards_on_bottom(hand, handsize)
         keephand = do_we_keep(hand)
-        if debug_mode:
-            print("After bottoming:", hand)
-            print("Keephand:", keephand)
+        logger.debug(f"After bottoming: {hand}")
+        logger.debug(f"Keephand: {keephand}")
         if keephand:
             break
 
     # Add commander as a free spell
     for commander_cost in commander_costs:
         hand[f"{commander_cost} CMC"] += 1
-    if debug_mode:
-        print("After adding commander:", hand)
+    logger.debug(f"After adding commander: {hand}")
 
     for turn in range(1, turn_of_interest + 1):
         # For turn_of_interest = 7, this range is {1, 2, ..., 7} so we
@@ -399,14 +401,12 @@ def run_one_sim(
         mana_available_at_start_turn = mana_available
         we_cast_a_nonrock_spell_this_turn = False
 
-        if debug_mode:
-            print(
-                f"TURN {turn}. Card drawn {card_drawn}. {lands_in_play} "
-                f"lands, {rocks_in_play} rocks. Mana available "
-                f"{mana_available}. Cumulative mana {compounded_mana_spent}. "
-                f"Hand:",
-                hand,
-            )
+        logger.debug(
+            f"TURN {turn}. Card drawn {card_drawn}. {lands_in_play} "
+            f"lands, {rocks_in_play} rocks. Mana available "
+            f"{mana_available}. Cumulative mana {compounded_mana_spent}. "
+            f"Hand: {hand}"
+        )
 
         if turn == 1:
             lucky = 1 if hand["Sol Ring"] == 1 else 0
@@ -452,12 +452,10 @@ def run_one_sim(
                 cumulative_mana_in_play += cmc_of_followup_spell
                 we_cast_a_nonrock_spell_this_turn = True
 
-        if debug_mode:
-            print(
-                f"After rocks, mana available {mana_available}. Cumulative "
-                f"mana {compounded_mana_spent}. Hand:",
-                hand,
-            )
+        logger.debug(
+            f"After rocks, mana available {mana_available}. Cumulative "
+            f"mana {compounded_mana_spent}. Hand: {hand}"
+        )
 
         if mana_available >= 3 and mana_available <= 6:
             if hand[f"{mana_available} CMC"] == 0:
@@ -557,12 +555,10 @@ def run_one_sim(
         # optimizer regardless
         # So I deleted that entire part of the code for now
 
-        if debug_mode:
-            print(
-                f"After spells, mana available {mana_available}. Cumulative "
-                "mana {compounded_mana_spent}. Hand:",
-                hand,
-            )
+        logger.debug(
+            f"After spells, mana available {mana_available}. Cumulative "
+            f"mana {compounded_mana_spent}. Hand: {hand}"
+        )
 
     # Return lucky (True if you had Sol Ring on turn 1) to enable better rare
     # event simulation with reduced variance, although that part was cut for

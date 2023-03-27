@@ -1,2 +1,4 @@
 todo.txt
 htmlcov
+.DS_Store
+.coverage

@@ -1,4 +1,4 @@
-from typing import Generator, Tuple, Dict, Union
+from typing import Generator, Tuple, Dict, Union, List
 from itertools import product
 from dataclasses import dataclass, replace
 import random
@@ -303,7 +303,15 @@ def nr_mana(hand):
     return hand["Land"] + hand["Rock"]
 
 
-def run_one_sim():
+def construct_library_then_shuffle(decklist: Dict[str, int]) -> List[str]:
+    library = []
+    for card in decklist.keys():
+        library += [card] * decklist[card]
+    random.shuffle(library)
+    return library
+
+
+def run_one_sim(decklist: Dict[str, int]) -> Tuple[float, int]:
     # Initialize variables
     lands_in_play = 0
     rocks_in_play = 0
@@ -323,11 +331,7 @@ def run_one_sim():
         # We may mull free, 7, 6, or 5 cards and keep every 4-card hand
         # Once we actually keep, the variable keephand will be set to True
         if not keephand:
-            # Construct library as a list, then shuffle
-            library = []
-            for card in decklist.keys():
-                library += [card] * decklist[card]
-            random.shuffle(library)
+            library = construct_library_then_shuffle(decklist)
 
             # Construct a random opening hand
             hand = {
@@ -643,7 +647,7 @@ while continue_searching:
             if not dont_bother:
                 total_mana_spent = 0.0
                 for _ in range(num_simulations):
-                    (mana_spent_in_sim, lucky) = run_one_sim()
+                    (mana_spent_in_sim, lucky) = run_one_sim(decklist)
                     # Lucky is true for Sol Ring on turn 1. This
                     # could be used for clever variance
                     # reduction techniques

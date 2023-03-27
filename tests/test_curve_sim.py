@@ -81,3 +81,21 @@ def test_curve_full_desc():
         "8 one-drops, 19 two, 0 three, 16 four, 10 five, 3 six, 0 Signet, "
         "1 Sol Ring, 42 lands "
     )
+
+def test_game_state_start_has_shuffled_library():
+    curve = curve_sim.Curve(6, 12, 13, 0, 13, 8, 7, 0, 39)
+    state = curve_sim.GameState.start(curve)
+    assert len(state.library) == 99
+    for name, count in [
+            ("1 CMC", 6),
+            ("2 CMC", 12),
+            ("3 CMC", 13),
+            ("4 CMC", 0),
+            ("5 CMC", 13),
+            ("6 CMC", 8),
+            ("Rock", 7),
+            ("Sol Ring", 1),
+            ("Land", 39)
+            ]:
+            matches = [ card for card in state.library if card == name ]
+            assert len(matches) == count

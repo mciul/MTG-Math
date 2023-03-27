@@ -1,14 +1,13 @@
-#!/usr/bin/env python
-
-from typing import Generator, Tuple, Dict
-from dataclasses import dataclass, replace
-
-from itertools import product
-
 import logging
+import random
+from dataclasses import dataclass, replace
+from itertools import product
+from typing import Dict, Generator, Tuple
+
 logger = logging.getLogger()
 
 
+CardBag = Dict[str, int]
 CurveTuple = Tuple[int, int, int, int, int, int, int, int]
 
 def nearby_values(start_value: int) -> Generator[int, None, None]:
@@ -127,3 +126,15 @@ class Curve:
             + str(self.land)
             + " lands "
         )
+
+class GameState:
+    def __init__(self, library: CardBag):
+        self.library = library
+
+    @classmethod
+    def start(cls, curve: Curve) -> "GameState":
+        library = []
+        for card in curve.decklist.keys():
+            library += [card] * curve.decklist[card]
+        random.shuffle(library)
+        return cls(library)

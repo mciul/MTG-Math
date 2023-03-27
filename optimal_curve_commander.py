@@ -311,7 +311,32 @@ def construct_library_then_shuffle(decklist: Dict[str, int]) -> List[str]:
     return library
 
 
-def run_one_sim(decklist: Dict[str, int]) -> Tuple[float, int]:
+def construct_random_opening_hand(library: List[str]) -> List[str]:
+    """draw a hand from the library and return the hand
+
+    Side effects: mutates the library by removing the cards drawn
+    """
+    hand = {
+        "1 CMC": 0,
+        "2 CMC": 0,
+        "3 CMC": 0,
+        "4 CMC": 0,
+        "5 CMC": 0,
+        "6 CMC": 0,
+        "Rock": 0,
+        "Sol Ring": 0,
+        "Draw": 0,
+        "Land": 0,
+    }
+    for _ in range(7):
+        card_drawn = library.pop(0)
+        hand[card_drawn] += 1
+    return hand
+
+
+def run_one_sim(
+    decklist: Dict[str, int], commander_costs: List[int]
+) -> Tuple[float, int]:
     # Initialize variables
     lands_in_play = 0
     rocks_in_play = 0
@@ -332,24 +357,7 @@ def run_one_sim(decklist: Dict[str, int]) -> Tuple[float, int]:
         # Once we actually keep, the variable keephand will be set to True
         if not keephand:
             library = construct_library_then_shuffle(decklist)
-
-            # Construct a random opening hand
-            hand = {
-                "1 CMC": 0,
-                "2 CMC": 0,
-                "3 CMC": 0,
-                "4 CMC": 0,
-                "5 CMC": 0,
-                "6 CMC": 0,
-                "Rock": 0,
-                "Sol Ring": 0,
-                "Draw": 0,
-                "Land": 0,
-            }
-
-            for _ in range(7):
-                card_drawn = library.pop(0)
-                hand[card_drawn] += 1
+            hand = construct_random_opening_hand(library)
 
             if debug_mode:
                 print("Opening hand:", hand)
@@ -647,7 +655,9 @@ while continue_searching:
             if not dont_bother:
                 total_mana_spent = 0.0
                 for _ in range(num_simulations):
-                    (mana_spent_in_sim, lucky) = run_one_sim(decklist)
+                    (mana_spent_in_sim, lucky) = run_one_sim(
+                        decklist, commander_costs
+                    )
                     # Lucky is true for Sol Ring on turn 1. This
                     # could be used for clever variance
                     # reduction techniques

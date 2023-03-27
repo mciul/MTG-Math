@@ -348,26 +348,23 @@ def run_one_sim(
     draw_draw = 3  # Draw is 2 for Divination, 3 for Harmonize
 
     # Draw opening hands and mulligan
-    keephand = False
     if debug_mode:
         print("----------")
 
     for handsize in [(7, "free"), 7, 6, 5, 4]:
         # We may mull free, 7, 6, or 5 cards and keep every 4-card hand
         # Once we actually keep, the variable keephand will be set to True
-        if not keephand:
-            library = construct_library_then_shuffle(decklist)
-            hand = construct_random_opening_hand(library)
-
-            if debug_mode:
-                print("Opening hand:", hand)
-
-            hand = put_cards_on_bottom(hand, handsize)
-            keephand = do_we_keep(hand)
-
-            if debug_mode:
-                print("After bottoming:", hand)
-                print("Keephand:", keephand)
+        library = construct_library_then_shuffle(decklist)
+        hand = construct_random_opening_hand(library)
+        if debug_mode:
+            print("Opening hand:", hand)
+        hand = put_cards_on_bottom(hand, handsize)
+        keephand = do_we_keep(hand)
+        if debug_mode:
+            print("After bottoming:", hand)
+            print("Keephand:", keephand)
+        if keephand:
+            break
 
     # Add commander as a free spell
     for commander_cost in commander_costs:

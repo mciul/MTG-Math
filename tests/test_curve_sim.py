@@ -17,6 +17,22 @@ def test_curve_copy():
     assert curve.copy() == curve
 
 
+def test_curve_decklist():
+    curve = curve_sim.Curve(9, 0, 20, 14, 9, 4, 0, 0, 42)
+    assert curve.decklist == {
+        "1 CMC": 9,
+        "2 CMC": 0,
+        "3 CMC": 20,
+        "4 CMC": 14,
+        "5 CMC": 9,
+        "Sol Ring": 1,
+        "6 CMC": 4,
+        "Rock": 0,
+        "Draw": 0,
+        "Land": 42,
+    }
+
+
 def test_curve_count():
     curve = curve_sim.Curve(11, 0, 14, 0, 12, 11, 8, 0, 42)
     assert curve.count == 98
@@ -41,7 +57,7 @@ def test_curve_distance_from_varying_two_counts():
     assert curve1.distance_from(curve2) == 2
 
 
-def test_nearby_decks():
+def test_curve_nearby_decks():
     curve = curve_sim.Curve.fromtuple((8, 19, 0, 16, 10, 3, 0, 42))
     decks = list(curve.nearby_decks())
     assert len(decks) == 3 * 3 * 2 * 3 * 3 * 3 * 2 * 3
@@ -52,3 +68,16 @@ def test_nearby_decks():
         diff = [c - d for c, d in zip(curve.astuple(), deck.astuple())]
         assert all(d >= -1 for d in diff)
         assert all(d <= 1 for d in diff)
+
+
+def test_curve_brief_desc():
+    curve = curve_sim.Curve(8, 19, 0, 16, 10, 3, 0, 0, 42)
+    assert curve.brief_desc() == "8, 19, 0, 16, 10, 3, 0, 42"
+
+
+def test_curve_full_desc():
+    curve = curve_sim.Curve(8, 19, 0, 16, 10, 3, 0, 0, 42)
+    assert curve.full_desc() == (
+        "8 one-drops, 19 two, 0 three, 16 four, 10 five, 3 six, 0 Signet, "
+        "1 Sol Ring, 42 lands "
+    )

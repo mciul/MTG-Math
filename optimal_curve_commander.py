@@ -1,4 +1,4 @@
-from typing import Generator, Tuple, Dict
+from typing import Generator, Tuple, Dict, Union
 from itertools import product
 from dataclasses import dataclass, replace
 import random
@@ -209,6 +209,83 @@ def put_spells_on_bottom(hand, spells_remaining_to_bottom):
     spells_remaining_to_bottom -= Bottomable_rock
 
 
+def put_cards_on_bottom(
+    hand: Dict[str, int], cards_to_keep: Union[int, Tuple[int, str]]
+) -> Dict[str, int]:
+    new_hand = hand.copy()
+    if cards_to_keep == 6:
+        if nr_spells(hand) > 3:
+            put_spells_on_bottom(new_hand, 1)
+        else:
+            # The hand has 0, 1, 2, or 3 spells so we put a land on
+            # the bottom
+            new_hand["Land"] -= 1
+    if cards_to_keep == 5:
+        # We have to bottom. Ideal would be 3 land, 1 spell, 1 rock
+        if nr_spells(new_hand) > 3:
+            # Two spells on the bottom
+            put_spells_on_bottom(new_hand, 2)
+        elif nr_spells(new_hand) == 3:
+            # One land, one spell on the bottom
+            new_hand["Land"] -= 1
+            put_spells_on_bottom(new_hand, 1)
+        else:
+            # The hand has 0, 1, or 2 spells so we put two land on
+            # the bottom
+            new_hand["Land"] -= 2
+    if cards_to_keep == 4:
+        # We have to bottom. Ideal would be 3 land, 1 rock
+        if nr_spells(new_hand) > 3:
+            # Three spells on the bottom
+            put_spells_on_bottom(new_hand, 3)
+        elif nr_spells(new_hand) == 3:
+            # One land, two spell on the bottom
+            new_hand["Land"] -= 1
+            put_spells_on_bottom(new_hand, 2)
+        elif nr_spells(new_hand) == 2:
+            # Two land, one spell on the bottom
+            new_hand["Land"] -= 2
+            put_spells_on_bottom(new_hand, 1)
+        else:
+            # The hand has 0 or 1 spell so we put three land on the
+            # bottom
+            new_hand["Land"] -= 3
+
+    return new_hand
+
+
+def do_we_keep(
+    hand: Dict[str, int], cards_to_keep=Union[int, Tuple[int, str]]
+) -> bool:
+    # Check to see if we keep
+    if cards_to_keep == (7, "free"):
+        if (
+            hand["Land"] >= 3 and hand["Land"] <= 5 and nr_mana(hand) <= 5
+        ) or (
+            hand["Land"] >= 1 and hand["Land"] <= 5 and hand["Sol Ring"] == 1
+        ):
+            return True
+    if cards_to_keep == 7:
+        if (
+            hand["Land"] >= 2 and hand["Land"] <= 5 and nr_mana(hand) <= 5
+        ) or (
+            hand["Land"] >= 1 and hand["Land"] <= 5 and hand["Sol Ring"] == 1
+        ):
+            return True
+    if cards_to_keep == 6:
+        if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
+            hand["Land"] >= 1 and hand["Sol Ring"] == 1
+        ):
+            return True
+    if cards_to_keep == 5:
+        if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
+            hand["Land"] >= 1 and hand["Sol Ring"] == 1
+        ):
+            return True
+    # always keep 4
+    return True
+
+
 def nr_spells(hand):
     return (
         hand["1 CMC"]
@@ -273,83 +350,8 @@ def run_one_sim():
             if debug_mode:
                 print("Opening hand:", hand)
 
-            # Check to see if we keep
-            if handsize == (7, "free"):
-                if (
-                    hand["Land"] >= 3
-                    and hand["Land"] <= 5
-                    and nr_mana(hand) <= 5
-                ) or (
-                    hand["Land"] >= 1
-                    and hand["Land"] <= 5
-                    and hand["Sol Ring"] == 1
-                ):
-                    keephand = True
-
-            if handsize == 7:
-                if (
-                    hand["Land"] >= 2
-                    and hand["Land"] <= 5
-                    and nr_mana(hand) <= 5
-                ) or (
-                    hand["Land"] >= 1
-                    and hand["Land"] <= 5
-                    and hand["Sol Ring"] == 1
-                ):
-                    keephand = True
-
-            if handsize == 6:
-                # We have to bottom. Ideal would be 3 land, 2 spells, 1 rock
-                if nr_spells(hand) > 3:
-                    put_spells_on_bottom(hand, 1)
-                else:
-                    # The hand has 0, 1, 2, or 3 spells so we put a land on
-                    # the bottom
-                    hand["Land"] -= 1
-                # Do we keep?
-                if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
-                    hand["Land"] >= 1 and hand["Sol Ring"] == 1
-                ):
-                    keephand = True
-
-            if handsize == 5:
-                # We have to bottom. Ideal would be 3 land, 1 spell, 1 rock
-                if nr_spells(hand) > 3:
-                    # Two spells on the bottom
-                    put_spells_on_bottom(hand, 2)
-                elif nr_spells(hand) == 3:
-                    # One land, one spell on the bottom
-                    hand["Land"] -= 1
-                    put_spells_on_bottom(hand, 1)
-                else:
-                    # The hand has 0, 1, or 2 spells so we put two land on
-                    # the bottom
-                    hand["Land"] -= 2
-                # Do we keep?
-                if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
-                    hand["Land"] >= 1 and hand["Sol Ring"] == 1
-                ):
-                    keephand = True
-
-            if handsize == 4:
-                # We have to bottom. Ideal would be 3 land, 1 rock
-                if nr_spells(hand) > 3:
-                    # Three spells on the bottom
-                    put_spells_on_bottom(hand, 3)
-                elif nr_spells(hand) == 3:
-                    # One land, two spell on the bottom
-                    hand["Land"] -= 1
-                    put_spells_on_bottom(hand, 2)
-                elif nr_spells(hand) == 2:
-                    # Two land, one spell on the bottom
-                    hand["Land"] -= 2
-                    put_spells_on_bottom(hand, 1)
-                else:
-                    # The hand has 0 or 1 spell so we put three land on the
-                    # bottom
-                    hand["Land"] -= 3
-                # Do we keep?
-                keephand = True
+            hand = put_cards_on_bottom(hand, handsize)
+            keephand = do_we_keep(hand)
 
             if debug_mode:
                 print("After bottoming:", hand)

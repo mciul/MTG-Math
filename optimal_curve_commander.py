@@ -1,14 +1,14 @@
 from typing import Generator, Tuple, Dict, Union, List
 from itertools import product
-from dataclasses import dataclass, replace
 import random
 import logging
 
+from mtg_math.curve_sim import nearby_values, CurveTuple, Curve
+
 logger = logging.getLogger()
 # to enable debug:
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
-logger.info("Logging...")
 # Manually adjust these parameters to set the deck type and an initial guess
 # for where to start searching
 # The card values should sum to 98 because we're always adding a Sol Ring
@@ -25,128 +25,14 @@ initial_5_cmc = 9
 initial_6_cmc = 0
 initial_land = 38
 initial_draw = 0
-# debug_mode = False
+
+# num_simulations = 10000
+initial_num_simulations = 100
+# target_num_simulations = 200000
+target_num_simulations = 2000
 
 
-def nearby_values(start_value: int) -> Generator[int, None, None]:
-    for value in range(max(start_value - 1, 0), start_value + 2):
-        yield value
 
-
-CurveTuple = Tuple[int, int, int, int, int, int, int, int]
-
-
-@dataclass
-class Curve:
-    one: int
-    two: int
-    three: int
-    four: int
-    five: int
-    six: int
-    rock: int
-    draw: int
-    land: int
-
-    @classmethod
-    def fromtuple(cls, curve: CurveTuple) -> "Curve":
-        one, two, three, four, five, six, rock, land = curve
-        return cls(
-            one=one,
-            two=two,
-            three=three,
-            four=four,
-            five=five,
-            six=six,
-            rock=rock,
-            draw=0,
-            land=land,
-        )
-
-    def astuple(self) -> CurveTuple:
-        # ignore draw, currently it's always zero
-        return (
-            self.one,
-            self.two,
-            self.three,
-            self.four,
-            self.five,
-            self.six,
-            self.rock,
-            self.land,
-        )
-
-    def copy(self) -> "Curve":
-        return replace(self)
-
-    @property
-    def count(self):
-        return sum(self.astuple())
-
-    def distance_from(self, other: "Curve") -> int:
-        return sum(
-            abs(myvalue - othervalue)
-            for myvalue, othervalue in zip(self.astuple(), other.astuple())
-        )
-
-    def nearby_decks(self) -> Generator["Curve", None, None]:
-        ranges = (nearby_values(value) for value in self.astuple())
-        for curve in product(*ranges):
-            yield self.fromtuple(curve)
-
-    @property
-    def decklist(self) -> Dict[str, int]:
-        return {
-            "1 CMC": self.one,
-            "2 CMC": self.two,
-            "3 CMC": self.three,
-            "4 CMC": self.four,
-            "5 CMC": self.five,
-            "6 CMC": self.six,
-            "Rock": self.rock,
-            "Sol Ring": 1,
-            "Draw": self.draw,
-            "Land": self.land,
-        }
-
-    def brief_desc(self) -> str:
-        return (
-            str(self.one)
-            + ", "
-            + str(self.two)
-            + ", "
-            + str(self.three)
-            + ", "
-            + str(self.four)
-            + ", "
-            + str(self.five)
-            + ", "
-            + str(self.six)
-            + ", "
-            + str(self.rock)
-            + ", "
-            + str(self.land)
-        )
-
-    def full_desc(self) -> str:
-        return (
-            str(self.one)
-            + " one-drops, "
-            + str(self.two)
-            + " two, "
-            + str(self.three)
-            + " three, "
-            + str(self.four)
-            + " four, "
-            + str(self.five)
-            + " five, "
-            + str(self.six)
-            + " six, "
-            + str(self.rock)
-            + " Signet, 1 Sol Ring, "
-            + str(self.land)
-            + " lands "
-        )
 
 
 initial_curve = Curve(
@@ -567,8 +453,6 @@ def run_one_sim(
 
 
 # Initialize local search algorithm
-# num_simulations = 10000
-num_simulations = 10
 best_curve = initial_curve.copy()
 previous_best_mana_spent = 0
 previous_sims_for_best_deck = 0
@@ -591,20 +475,22 @@ Number_sims = {}
 # Neighborhood of a deck X, when the last nr sims for the best deck is:
 # all possible 99-card decks where the for each card type, the absolute
 # values of the difference with the number of copies of that card type in X
-# is at most one. # We start with a limited number of simulations
+# is at most one.
+# We start with a limited number of simulations
 # (num_simulations, 3000) as we explore and increase the number of
 # simulations in every step
 # If we have to re-evaluate a deck, we combine the simulations from the
 # current iterations with the ones that have already taken place prior.
 
 
+num_simulations = initial_num_simulations
 while continue_searching:
     best_mana_spent = 0
     improvement_possible = False
 
     for curve in best_curve.nearby_decks():
         nr_changes = curve.distance_from(best_curve)
-        if previous_sims_for_best_deck < num_simulations * 15:
+        if previous_sims_for_best_deck < target_num_simulations * 3 // 4:
             in_neighborhood = curve.count == deck_size - 1 and nr_changes <= 2
         else:
             in_neighborhood = curve.count == deck_size - 1
@@ -627,19 +513,19 @@ while continue_searching:
             # more sims
             dont_bother = False
             if (
-                Number_sims[curve.astuple()] > num_simulations * 5
+                Number_sims[curve.astuple()] > target_num_simulations // 4
                 and Estimation[curve.astuple()]
                 < 0.998 * previous_best_mana_spent
             ):
                 dont_bother = True
             if (
-                Number_sims[curve.astuple()] > num_simulations * 10
+                Number_sims[curve.astuple()] > target_num_simulations // 2
                 and Estimation[curve.astuple()]
                 < 0.999 * previous_best_mana_spent
             ):
                 dont_bother = True
             if (
-                Number_sims[curve.astuple()] > num_simulations * 20
+                Number_sims[curve.astuple()] > target_num_simulations
                 and Estimation[curve.astuple()]
                 < 0.9995 * previous_best_mana_spent
             ):
@@ -732,7 +618,7 @@ while continue_searching:
 
     previous_still_best = new_best_curve == best_curve
     previous_best_mana_spent = best_mana_spent
-    if previous_still_best and sims_for_best_deck > num_simulations * 20:
+    if previous_still_best and sims_for_best_deck > target_num_simulations:
         continue_searching = False
     else:
         continue_searching = True

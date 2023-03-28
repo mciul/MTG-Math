@@ -32,9 +32,6 @@ initial_num_simulations = 100
 target_num_simulations = 2000
 
 
-
-
-
 initial_curve = Curve(
     one=initial_1_cmc,
     two=initial_2_cmc,
@@ -638,7 +635,7 @@ while continue_searching:
             best_curve = curve
             sims_for_best_deck = Number_sims[curve.astuple()]
 
-    num_simulations += 1000
+    num_simulations += initial_num_simulations // 10
     previous_sims_for_best_deck = sims_for_best_deck
     print(
         "====>Deck: "

@@ -138,8 +138,8 @@ class GameState:
     @classmethod
     def start(cls, curve: Curve) -> "GameState":
         library = []
-        for card in curve.decklist.keys():
-            library += [card] * curve.decklist[card]
+        for card, count in curve.decklist.items():
+            library += [card] * count
         random.shuffle(library)
         hand = defaultdict(int)
         for _ in range(7):

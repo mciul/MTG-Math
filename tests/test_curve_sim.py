@@ -1,6 +1,12 @@
 import random
 from pytest import mark, raises
-from mtg_math.curve_sim import Curve, GameState, CardBag, do_we_keep
+from mtg_math.curve_sim import (
+    Curve,
+    GameState,
+    CardBag,
+    do_we_keep,
+    cards_to_bottom,
+)
 
 import logging
 
@@ -254,3 +260,164 @@ def test_do_we_keep_four(spells: int):
 def test_cardbag_with_negative_count_raises_error():
     with raises(ValueError):
         CardBag({"2 CMC": 2, "Sol Ring": 0, "Land": -1})
+
+
+def test_cards_to_bottom_when_keeping_seven():
+    hand = CardBag({"Land": 4, "Rock": 1, "1 CMC": 2})
+    assert cards_to_bottom(hand, 0) == {}
+
+
+@mark.parametrize("lands", [4, 5])
+def test_cards_to_bottom_when_keeping_six_with_too_much_land(lands):
+    hand = CardBag({"Land": lands, "1 CMC": 1, "6 CMC": 6 - lands})
+    assert cards_to_bottom(hand, 1) == {"Land": 1}
+
+
+@mark.parametrize("sol_ring", [0, 1])
+@mark.parametrize("rocks", [3, 4, 5])
+def test_cards_to_bottom_when_keeping_six_with_too_many_rocks(sol_ring, rocks):
+    hand = CardBag(
+        {
+            "Land": 2 - sol_ring,
+            "Sol Ring": sol_ring,
+            "Rock": rocks,
+            "5 CMC": 5 - rocks,
+        }
+    )
+    assert cards_to_bottom(hand, 1) == {"Rock": 1}
+
+
+@mark.parametrize("rocks", [2, 3, 4])
+def test_cards_to_bottom_when_keeping_six_with_too_many_rocks_and_land(rocks):
+    hand = CardBag({"Land": 3, "Rock": rocks, "5 CMC": 4 - rocks})
+    assert cards_to_bottom(hand, 1) == {"Rock": 1}
+
+
+@mark.parametrize("count", [1, 2, 3])
+def test_cards_to_bottom_when_keeping_six_with_six_cmc(count):
+    hand = CardBag(
+        {"Land": 2, "Rock": 3 - count, "4 CMC": 1, "5 CMC": 1, "6 CMC": count}
+    )
+    assert cards_to_bottom(hand, 1) == {"6 CMC": 1}
+
+
+@mark.parametrize("count", [1, 2, 3])
+def test_cards_to_bottom_when_keeping_six_with_five_cmc(count):
+    hand = CardBag(
+        {"Land": 2, "Rock": 3 - count, "3 CMC": 1, "4 CMC": 1, "5 CMC": count}
+    )
+    assert cards_to_bottom(hand, 1) == {"5 CMC": 1}
+
+
+@mark.parametrize("count", [1, 2, 3])
+def test_cards_to_bottom_when_keeping_six_with_four_cmc(count):
+    hand = CardBag(
+        {"Land": 2, "Rock": 3 - count, "2 CMC": 1, "3 CMC": 1, "4 CMC": count}
+    )
+    assert cards_to_bottom(hand, 1) == {"4 CMC": 1}
+
+
+@mark.parametrize("count", [1, 2, 3])
+def test_cards_to_bottom_when_keeping_six_with_three_cmc(count):
+    hand = CardBag(
+        {"Land": 2, "Rock": 3 - count, "1 CMC": 1, "2 CMC": 1, "3 CMC": count}
+    )
+    assert cards_to_bottom(hand, 1) == {"3 CMC": 1}
+
+
+@mark.parametrize("count", [1, 2, 3, 4])
+def test_cards_to_bottom_when_keeping_six_with_two_cmc(count):
+    hand = CardBag({"Land": 2, "Rock": 1, "1 CMC": 4 - count, "2 CMC": count})
+    assert cards_to_bottom(hand, 1) == {"2 CMC": 1}
+
+
+@mark.parametrize("count", [3, 4, 5])
+def test_cards_to_bottom_when_keeping_six_with_one_cmc(count):
+    hand = CardBag({"Land": 6 - count, "Rock": 1, "1 CMC": count})
+    assert cards_to_bottom(hand, 1) == {"1 CMC": 1}
+
+
+@mark.parametrize(
+    "cards,bottom",
+    [
+        ({"Land": 6, "Rock": 1}, {"Land": 2}),
+        ({"Land": 6, "6 CMC": 1}, {"Land": 2}),
+        ({"Land": 6, "Rock": 1}, {"Land": 2}),
+        ({"Land": 5, "Rock": 1, "6 CMC": 1}, {"Land": 2}),
+        ({"Land": 4, "Rock": 2, "6 CMC": 1}, {"Land": 1, "Rock": 1}),
+        ({"Land": 3, "Rock": 3, "6 CMC": 1}, {"Rock": 2}),
+        (
+            {"Land": 3, "Rock": 2, "5 CMC": 1, "6 CMC": 1},
+            {"Rock": 1, "6 CMC": 1},
+        ),
+        ({"Land": 2, "Rock": 3, "5 CMC": 1, "6 CMC": 1}, {"Rock": 2}),
+        ({"Land": 2, "Rock": 2, "5 CMC": 1, "6 CMC": 2}, {"6 CMC": 2}),
+        (
+            {"Land": 2, "Rock": 2, "5 CMC": 2, "6 CMC": 1},
+            {"5 CMC": 1, "6 CMC": 1},
+        ),
+        (
+            {"Land": 1, "Sol Ring": 1, "Rock": 2, "5 CMC": 2, "6 CMC": 1},
+            {"5 CMC": 1, "6 CMC": 1},
+        ),
+    ],
+)
+def test_cards_to_bottom_when_keeping_five(cards, bottom):
+    hand = CardBag(cards)
+    assert cards_to_bottom(hand, 2) == CardBag(bottom)
+
+
+@mark.parametrize(
+    "cards,bottom",
+    [
+        ({"Land": 7}, {"Land": 3}),
+        ({"Land": 6, "Rock": 1}, {"Land": 3}),
+        ({"Land": 6, "6 CMC": 1}, {"Land": 3}),
+        ({"Land": 5, "Rock": 1, "6 CMC": 1}, {"Land": 2, "6 CMC": 1}),
+        ({"Land": 5, "Sol Ring": 1, "6 CMC": 1}, {"Land": 3}),
+        (
+            {"Land": 4, "Rock": 2, "6 CMC": 1},
+            {"Land": 1, "Rock": 1, "6 CMC": 1},
+        ),
+        ({"Land": 3, "Rock": 3, "6 CMC": 1}, {"Rock": 2, "6 CMC": 1}),
+        (
+            {"Land": 3, "Rock": 2, "5 CMC": 1, "6 CMC": 1},
+            {"Rock": 1, "5 CMC": 1, "6 CMC": 1},
+        ),
+        (
+            {"Land": 2, "Rock": 3, "5 CMC": 1, "6 CMC": 1},
+            {"Rock": 2, "6 CMC": 1},
+        ),
+        (
+            {"Land": 2, "Rock": 2, "5 CMC": 1, "6 CMC": 2},
+            {"5 CMC": 1, "6 CMC": 2},
+        ),
+        (
+            {"Land": 2, "Rock": 2, "5 CMC": 2, "6 CMC": 1},
+            {"5 CMC": 2, "6 CMC": 1},
+        ),
+        (
+            {"Land": 1, "Sol Ring": 1, "Rock": 2, "5 CMC": 2, "6 CMC": 1},
+            {"5 CMC": 2, "6 CMC": 1},
+        ),
+        (
+            {
+                "1 CMC": 2,
+                "2 CMC": 1,
+                "3 CMC": 1,
+                "4 CMC": 1,
+                "5 CMC": 1,
+                "6 CMC": 1,
+            },
+            {"4 CMC": 1, "5 CMC": 1, "6 CMC": 1},
+        ),
+        ({"Rock": 2, "6 CMC": 5}, {"6 CMC": 3}),
+        ({"Rock": 3, "6 CMC": 4}, {"Rock": 2, "6 CMC": 1}),
+        ({"Rock": 4, "6 CMC": 4}, {"Rock": 3}),
+        ({"Rock": 6, "Sol Ring": 1}, {"Rock": 3}),
+        ({"Rock": 7}, {"Rock": 3}),
+    ],
+)
+def test_cards_to_bottom_when_keeping_four(cards, bottom):
+    hand = CardBag(cards)
+    assert cards_to_bottom(hand, 3) == CardBag(bottom)

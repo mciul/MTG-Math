@@ -20,7 +20,11 @@ class CardBag(UserDict):
     def __setitem__(self, key: str, value: int):
         if value < 0:
             raise ValueError(f"Negative card count for {key}: {value}")
-        super().__setitem__(key, value)
+        if value > 0:
+            super().__setitem__(key, value)
+        elif key in self.data:
+            # for equality tests, delete all "0" values from the dictionary
+            self.pop(key)
 
     def __getitem__(self, key: str) -> int:
         return self.data.get(key, 0)
@@ -29,6 +33,9 @@ class CardBag(UserDict):
         return CardBag(
             {card: count - other[card] for card, count in self.items()}
         )
+
+    def add(self, card: str, count: int) -> "CardBag":
+        return CardBag({**self.data, card: self[card] + count})
 
 
 @dataclass
@@ -248,3 +255,54 @@ def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:
     if cards_to_keep == 7:
         max_lands -= hand["Rock"]
     return min_lands <= hand["Land"] <= max_lands
+
+
+def cards_to_bottom(hand: CardBag, count: int) -> CardBag:
+    bottom = CardBag({})
+    if count == 0:
+        return bottom
+    if nr_spells(hand) <= 3 and count == 1:
+        return CardBag({"Land": 1})
+    if nr_spells(hand) == 3 and count >= 2:
+        bottom = bottom.add("Land", 1)
+        count -= 1
+    if nr_spells(hand) < 3 and count == 2:
+        return CardBag({"Land": 2})
+    if nr_spells(hand) < 2 and count == 3:
+        return CardBag({"Land": 3})
+    if nr_spells(hand) == 2 and count == 3:
+        bottom = bottom.add("Land", 2)
+        count -= 2
+    if (hand["Rock"] >= 3) or (hand["Land"] >= 3 and hand["Rock"] >= 2):
+        Bottomable_rock = min(hand["Rock"] - 1, count)
+        bottom = bottom.add("Rock", Bottomable_rock)
+        count -= Bottomable_rock
+    Bottomable_cmc_6 = min(hand["6 CMC"], count)
+    bottom = bottom.add("6 CMC", Bottomable_cmc_6)
+    count -= Bottomable_cmc_6
+
+    Bottomable_cmc_5 = min(hand["5 CMC"], count)
+    bottom = bottom.add("5 CMC", Bottomable_cmc_5)
+    count -= Bottomable_cmc_5
+
+    Bottomable_cmc_4 = min(hand["4 CMC"], count)
+    bottom = bottom.add("4 CMC", Bottomable_cmc_4)
+    count -= Bottomable_cmc_4
+
+    Bottomable_cmc_3 = min(hand["3 CMC"], count)
+    bottom = bottom.add("3 CMC", Bottomable_cmc_3)
+    count -= Bottomable_cmc_3
+
+    Bottomable_cmc_2 = min(hand["2 CMC"], count)
+    bottom = bottom.add("2 CMC", Bottomable_cmc_2)
+    count -= Bottomable_cmc_2
+
+    Bottomable_cmc_1 = min(hand["1 CMC"], count)
+    bottom = bottom.add("1 CMC", Bottomable_cmc_1)
+    count -= Bottomable_cmc_1
+
+    # In case of unusual all land and all rock hands, bottom the remainder
+    Bottomable_rock = min(hand["Rock"], count)
+    bottom = bottom.add("Rock", Bottomable_rock)
+    count -= Bottomable_rock
+    return bottom

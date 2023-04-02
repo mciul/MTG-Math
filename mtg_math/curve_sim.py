@@ -17,6 +17,12 @@ def nearby_values(start_value: int) -> Generator[int, None, None]:
         yield value
 
 
+def remove_cards(source: CardBag, selection: CardBag) -> CardBag:
+    return {
+        card: count - selection.get(card, 0) for card, count in source.items()
+    }
+
+
 @dataclass
 class Curve:
     one: int
@@ -136,9 +142,9 @@ class GameState:
         self.hand = hand
 
     @classmethod
-    def start(cls, curve: Curve) -> "GameState":
+    def start(cls, decklist: CardBag) -> "GameState":
         library = []
-        for card, count in curve.decklist.items():
+        for card, count in decklist.items():
             library += [card] * count
         random.shuffle(library)
         hand: CardBag = defaultdict(int)
@@ -146,3 +152,11 @@ class GameState:
             card = library.pop(0)
             hand[card] += 1
         return cls(library, hand)
+
+    def bottom_from_hand(self, selection: CardBag):
+        """put cards from hand onto the bottom
+
+        Actually, we just delete the cards, assuming we'll never get that
+        far into the library
+        """
+        self.hand = remove_cards(self.hand, selection)

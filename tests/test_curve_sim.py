@@ -1,4 +1,20 @@
+import random
 from mtg_math import curve_sim
+
+import logging
+
+logger = logging.getLogger()
+logging.basicConfig(level=logging.INFO)
+
+
+def game_with_hand(hand: curve_sim.CardBag) -> curve_sim.GameState:
+    curve = curve_sim.Curve(11, 0, 14, 0, 12, 11, 8, 0, 42)
+    logger.info(f"game_with_hand({hand}) {curve.decklist=}")
+    library = []
+    for card, count in curve.decklist.items():
+        library += [card] * (count - hand.get(card, 0))
+    random.shuffle(library)
+    return curve_sim.GameState(library, hand)
 
 
 def test_curve_astuple_skips_draw_count():
@@ -85,7 +101,7 @@ def test_curve_full_desc():
 
 def test_game_state_start_has_shuffled_library_and_hand():
     curve = curve_sim.Curve(6, 12, 13, 0, 13, 8, 7, 0, 39)
-    state = curve_sim.GameState.start(curve)
+    state = curve_sim.GameState.start(curve.decklist)
     assert sum(state.hand.values()) == 7
     assert len(state.library) == 99 - 7
     for name, count in [
@@ -101,3 +117,14 @@ def test_game_state_start_has_shuffled_library_and_hand():
     ]:
         matches = [card for card in state.library if card == name]
         assert len(matches) + state.hand[name] == count
+
+
+def test_bottom_three_lands():
+    state = game_with_hand({"Land": 7})
+    state.bottom_from_hand({"Land": 3})
+    assert state.hand == {"Land": 4}
+
+def test_bottom_lands_and_spells():
+    state = game_with_hand({"CMC 1": 1, "CMC 6": 2, "Land": 4})
+    state.bottom_from_hand({"Land": 1, "CMC 6": 1})
+    assert state.hand == {"CMC 1": 1, "CMC 6": 1, "Land": 3}

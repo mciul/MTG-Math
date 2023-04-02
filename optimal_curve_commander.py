@@ -3,7 +3,7 @@ from itertools import product
 import random
 import logging
 
-from mtg_math.curve_sim import nearby_values, CurveTuple, Curve
+from mtg_math.curve_sim import nearby_values, CurveTuple, Curve, GameState
 
 logger = logging.getLogger()
 # to enable debug:
@@ -242,8 +242,9 @@ def run_one_sim(
     for handsize in [(7, "free"), 7, 6, 5, 4]:
         # We may mull free, 7, 6, or 5 cards and keep every 4-card hand
         # Once we actually keep, the variable keephand will be set to True
-        library = construct_library_then_shuffle(decklist)
-        hand = construct_random_opening_hand(library)
+        state = GameState.start(decklist)
+        library = state.library.copy()
+        hand = state.hand.copy()
         logger.debug(f"Opening hand: {hand}")
         hand = put_cards_on_bottom(hand, handsize)
         keephand = do_we_keep(hand)

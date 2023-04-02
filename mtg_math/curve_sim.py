@@ -1,6 +1,6 @@
 import logging
 import random
-from collections import defaultdict
+from collections import defaultdict, UserDict
 from dataclasses import dataclass, replace
 from itertools import product
 from typing import Dict, Generator, List, Tuple
@@ -8,7 +8,6 @@ from typing import Dict, Generator, List, Tuple
 logger = logging.getLogger()
 
 
-CardBag = Dict[str, int]
 CurveTuple = Tuple[int, int, int, int, int, int, int, int]
 
 
@@ -17,10 +16,19 @@ def nearby_values(start_value: int) -> Generator[int, None, None]:
         yield value
 
 
-def remove_cards(source: CardBag, selection: CardBag) -> CardBag:
-    return {
-        card: count - selection.get(card, 0) for card, count in source.items()
-    }
+class CardBag(UserDict):
+    def __setitem__(self, key: str, value: int):
+        if value < 0:
+            raise ValueError(f"Negative card count for {key}: {value}")
+        super().__setitem__(key, value)
+
+    def __getitem__(self, key: str) -> int:
+        return self.data.get(key, 0)
+
+    def __sub__(self, other: "CardBag") -> "CardBag":
+        return CardBag(
+            {card: count - other[card] for card, count in self.items()}
+        )
 
 
 @dataclass
@@ -159,4 +167,110 @@ class GameState:
         Actually, we just delete the cards, assuming we'll never get that
         far into the library
         """
-        self.hand = remove_cards(self.hand, selection)
+        self.hand = self.hand - selection
+
+
+def nr_mana(hand: CardBag) -> int:
+    return hand.get("Land", 0) + hand.get("Rock", 0)
+
+
+def nr_spells(hand: CardBag) -> int:
+    return (
+        hand["1 CMC"]
+        + hand["2 CMC"]
+        + hand["3 CMC"]
+        + hand["4 CMC"]
+        + hand["5 CMC"]
+        + hand["6 CMC"]
+        + hand["Rock"]
+        + hand["Draw"]
+    )
+
+
+def put_spells_on_bottom(
+    hand: CardBag, spells_remaining_to_bottom: int
+) -> CardBag:
+    # If the hand has too much mana, the first card(s) to bottom are all but one Rock
+    hand = hand.copy()
+    if (hand["Rock"] >= 3) or (hand["Land"] >= 3 and hand["Rock"] >= 2):
+        Bottomable_rock = min(hand["Rock"] - 1, spells_remaining_to_bottom)
+        hand["Rock"] -= Bottomable_rock
+        spells_remaining_to_bottom -= Bottomable_rock
+
+    Bottomable_cmc_6 = min(hand["6 CMC"], spells_remaining_to_bottom)
+    hand["6 CMC"] -= Bottomable_cmc_6
+    spells_remaining_to_bottom -= Bottomable_cmc_6
+
+    Bottomable_cmc_5 = min(hand["5 CMC"], spells_remaining_to_bottom)
+    hand["5 CMC"] -= Bottomable_cmc_5
+    spells_remaining_to_bottom -= Bottomable_cmc_5
+
+    Bottomable_cmc_4 = min(hand["4 CMC"], spells_remaining_to_bottom)
+    hand["4 CMC"] -= Bottomable_cmc_4
+    spells_remaining_to_bottom -= Bottomable_cmc_4
+
+    Bottomable_cmc_3 = min(hand["3 CMC"], spells_remaining_to_bottom)
+    hand["3 CMC"] -= Bottomable_cmc_3
+    spells_remaining_to_bottom -= Bottomable_cmc_3
+
+    Bottomable_cmc_2 = min(hand["2 CMC"], spells_remaining_to_bottom)
+    hand["2 CMC"] -= Bottomable_cmc_2
+    spells_remaining_to_bottom -= Bottomable_cmc_2
+
+    Bottomable_cmc_1 = min(hand["1 CMC"], spells_remaining_to_bottom)
+    hand["1 CMC"] -= Bottomable_cmc_1
+    spells_remaining_to_bottom -= Bottomable_cmc_1
+
+    # Card advantage becomes more important after a mulligan, so bottom that last
+    Bottomable_draw = min(hand["Draw"], spells_remaining_to_bottom)
+    hand["Draw"] -= Bottomable_draw
+    spells_remaining_to_bottom -= Bottomable_draw
+
+    # In case of unusual all land and all rock hands, bottom the remainder
+    Bottomable_rock = min(hand["Rock"], spells_remaining_to_bottom)
+    hand["Rock"] -= Bottomable_rock
+    spells_remaining_to_bottom -= Bottomable_rock
+
+    return hand
+
+def put_land_on_bottom(hand: CardBag, count: int) -> CardBag:
+    return hand - CardBag({"Land": count})
+
+def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:
+    if cards_to_keep == 7 and free:
+        return (
+            hand["Land"] >= 3 and hand["Land"] <= 5 and nr_mana(hand) <= 5
+        ) or (
+            hand["Land"] >= 1 and hand["Land"] <= 5 and hand["Sol Ring"] == 1
+        )
+    if cards_to_keep == 7:
+        if (
+            hand["Land"] >= 2 and hand["Land"] <= 5 and nr_mana(hand) <= 5
+        ) or (
+            hand["Land"] >= 1 and hand["Land"] <= 5 and hand["Sol Ring"] == 1
+        ):
+            return True
+    if cards_to_keep == 6:
+        if nr_spells(hand) > 3:
+            hand = put_spells_on_bottom(hand, 1)
+        else:
+            hand = put_land_on_bottom(hand, 1)
+        if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
+            hand["Land"] >= 1 and hand["Sol Ring"] == 1
+        ):
+            return True
+    if cards_to_keep == 5:
+        if nr_spells(hand) > 3:
+            hand = put_spells_on_bottom(hand, 2)
+        elif nr_spells(hand) == 3:
+            hand = put_land_on_bottom(hand, 1)
+            hand = put_spells_on_bottom(hand, 1)
+        else:
+            # The hand has 0, 1, or 2 spells so we put two land on the bottom
+            hand = put_land_on_bottom(hand, 2)
+        # Do we keep?
+        if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
+            hand["Land"] >= 1 and hand["Sol Ring"] == 1
+        ):
+            return True
+    return cards_to_keep <= 4

@@ -141,7 +141,7 @@ class GameState:
         for card, count in curve.decklist.items():
             library += [card] * count
         random.shuffle(library)
-        hand = defaultdict(int)
+        hand: CardBag = defaultdict(int)
         for _ in range(7):
             card = library.pop(0)
             hand[card] += 1

@@ -233,44 +233,18 @@ def put_spells_on_bottom(
 
     return hand
 
+
 def put_land_on_bottom(hand: CardBag, count: int) -> CardBag:
     return hand - CardBag({"Land": count})
 
+
 def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:
-    if cards_to_keep == 7 and free:
-        return (
-            hand["Land"] >= 3 and hand["Land"] <= 5 and nr_mana(hand) <= 5
-        ) or (
-            hand["Land"] >= 1 and hand["Land"] <= 5 and hand["Sol Ring"] == 1
-        )
+    if cards_to_keep <= 4:
+        return True
+    min_lands = 3 if cards_to_keep == 7 and free else 2
+    if hand["Sol Ring"] > 0:
+        min_lands = 1
+    max_lands = 5 if cards_to_keep > 5 else 6
     if cards_to_keep == 7:
-        if (
-            hand["Land"] >= 2 and hand["Land"] <= 5 and nr_mana(hand) <= 5
-        ) or (
-            hand["Land"] >= 1 and hand["Land"] <= 5 and hand["Sol Ring"] == 1
-        ):
-            return True
-    if cards_to_keep == 6:
-        if nr_spells(hand) > 3:
-            hand = put_spells_on_bottom(hand, 1)
-        else:
-            hand = put_land_on_bottom(hand, 1)
-        if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
-            hand["Land"] >= 1 and hand["Sol Ring"] == 1
-        ):
-            return True
-    if cards_to_keep == 5:
-        if nr_spells(hand) > 3:
-            hand = put_spells_on_bottom(hand, 2)
-        elif nr_spells(hand) == 3:
-            hand = put_land_on_bottom(hand, 1)
-            hand = put_spells_on_bottom(hand, 1)
-        else:
-            # The hand has 0, 1, or 2 spells so we put two land on the bottom
-            hand = put_land_on_bottom(hand, 2)
-        # Do we keep?
-        if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
-            hand["Land"] >= 1 and hand["Sol Ring"] == 1
-        ):
-            return True
-    return cards_to_keep <= 4
+        max_lands -= hand["Rock"]
+    return min_lands <= hand["Land"] <= max_lands

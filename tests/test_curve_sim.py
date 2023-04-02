@@ -161,10 +161,30 @@ def test_do_we_keep_less_with_good_balance(keep: int, spells: int):
     assert do_we_keep(hand, keep)
 
 
+@mark.parametrize("max_rocks", [1, 2])
+@mark.parametrize("spells", [2, 3])
+@mark.parametrize("free", [True, False])
+def test_do_we_keep_seven_with_moderate_rocks(max_rocks, spells, free):
+    rocks = min(max_rocks, 4 - spells)
+    lands = 7 - spells - rocks
+    hand = CardBag(
+        {"Land": 7 - spells - rocks, "Rock": rocks, "1 CMC": spells}
+    )
+    assert do_we_keep(hand, 7, free=free)
+
+
+def test_do_we_keep_seven_with_two_lands_and_three_rocks_or_go_to_six():
+    hand = CardBag({"Land": 2, "Rock": 3, "1 CMC": 2})
+    assert do_we_keep(hand, 7, free=False)
+
+
+@mark.parametrize("rocks", [1, 2, 3, 4, 5])
 @mark.parametrize("spells", [0, 1])
 @mark.parametrize("free", [True, False])
-def test_do_we_keep_seven_with_five_lands_and_rocks(spells, free):
-    hand = CardBag({"Land": 5, "Rock": 2 - spells, "1 CMC": spells})
+def test_do_we_keep_seven_with_lots_of_rocks(spells, rocks, free):
+    hand = CardBag(
+        {"Land": 7 - spells - rocks, "Rock": rocks, "1 CMC": spells}
+    )
     assert not do_we_keep(hand, 7, free=free)
 
 

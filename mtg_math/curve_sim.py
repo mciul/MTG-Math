@@ -206,17 +206,18 @@ def cards_to_bottom(hand: CardBag, count: int) -> CardBag:
     land_to_bottom = max(0, min(count, 4 - nr_spells(hand)))
     bottom = CardBag({"Land": land_to_bottom})
     count -= land_to_bottom
-    if (hand["Rock"] >= 3) or (hand["Land"] >= 3 and hand["Rock"] >= 2):
-        Bottomable_rock = min(hand["Rock"] - 1, count)
-        bottom = bottom.add("Rock", Bottomable_rock)
-        count -= Bottomable_rock
+    max_rocks = 2 if hand["Land"] >= 3 else 3
+    if hand["Rock"] >= max_rocks:
+        bottomable = min(hand["Rock"] - 1, count)
+        bottom = bottom.add("Rock", bottomable)
+        count -= bottomable
     for cmc in range(6, 0, -1):
         spell = f"{cmc} CMC"
         bottomable = min(hand[spell], count)
         bottom = bottom.add(spell, bottomable)
         count -= bottomable
     # In case of unusual all land and all rock hands, bottom the remainder
-    Bottomable_rock = min(hand["Rock"], count)
-    bottom = bottom.add("Rock", Bottomable_rock)
-    count -= Bottomable_rock
+    bottomable = min(hand["Rock"], count)
+    bottom = bottom.add("Rock", bottomable)
+    count -= bottomable
     return bottom

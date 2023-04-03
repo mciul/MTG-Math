@@ -371,19 +371,26 @@ def test_cards_to_bottom_when_keeping_five(cards, bottom):
     "cards,bottom",
     [
         ({"Land": 7}, {"Land": 3}),
-        ({"Land": 6, "Rock": 1}, {"Land": 3}),
         ({"Land": 6, "6 CMC": 1}, {"Land": 3}),
+        ({"Land": 6, "Rock": 1}, {"Land": 3}),
+        ({"Land": 6, "Sol Ring": 1}, {"Land": 3}),
         ({"Land": 5, "Rock": 1, "6 CMC": 1}, {"Land": 2, "6 CMC": 1}),
+        ({"Land": 5, "Rock": 2}, {"Land": 2, "Rock": 1}),
+        ({"Land": 5, "Sol Ring": 1, "Rock": 1}, {"Land": 3}),
         ({"Land": 5, "Sol Ring": 1, "6 CMC": 1}, {"Land": 3}),
         (
             {"Land": 4, "Rock": 2, "6 CMC": 1},
             {"Land": 1, "Rock": 1, "6 CMC": 1},
         ),
+        ({"Land": 4, "Rock": 3}, {"Land": 1, "Rock": 2}),
+        ({"Land": 4, "Sol Ring": 1, "Rock": 2}, {"Land": 2, "Rock": 1}),
         ({"Land": 3, "Rock": 3, "6 CMC": 1}, {"Rock": 2, "6 CMC": 1}),
         (
             {"Land": 3, "Rock": 2, "5 CMC": 1, "6 CMC": 1},
             {"Rock": 1, "5 CMC": 1, "6 CMC": 1},
         ),
+        ({"Land": 3, "Rock": 4}, {"Rock": 3}),
+        ({"Land": 3, "Sol Ring": 1, "Rock": 4}, {"Rock": 3}),
         (
             {"Land": 2, "Rock": 3, "5 CMC": 1, "6 CMC": 1},
             {"Rock": 2, "6 CMC": 1},
@@ -396,10 +403,14 @@ def test_cards_to_bottom_when_keeping_five(cards, bottom):
             {"Land": 2, "Rock": 2, "5 CMC": 2, "6 CMC": 1},
             {"5 CMC": 2, "6 CMC": 1},
         ),
+        ({"Land": 2, "Rock": 5}, {"Rock": 3}),
+        ({"Land": 2, "Sol Ring": 1, "Rock": 4}, {"Rock": 3}),
         (
             {"Land": 1, "Sol Ring": 1, "Rock": 2, "5 CMC": 2, "6 CMC": 1},
             {"5 CMC": 2, "6 CMC": 1},
         ),
+        ({"Land": 1, "Rock": 6}, {"Rock": 3}),
+        ({"Land": 1, "Sol Ring": 1, "Rock": 5}, {"Rock": 3}),
         (
             {
                 "1 CMC": 2,

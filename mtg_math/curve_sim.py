@@ -177,23 +177,15 @@ class GameState:
         self.hand = self.hand - selection
 
 
-def nr_spells(hand: CardBag) -> int:
-    return (
-        hand["1 CMC"]
-        + hand["2 CMC"]
-        + hand["3 CMC"]
-        + hand["4 CMC"]
-        + hand["5 CMC"]
-        + hand["6 CMC"]
-        + hand["Rock"]
-        + hand["Draw"]
-    )
-
-
 def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:
+    """Should we keep this hand or ship it?
+
+    cards_to_keep tells us how many we can keep after bottoming
+    free tells us if the next mulligan is free (we'll keep 7)
+    """
     if cards_to_keep <= 4:
         return True
-    min_lands = 3 if cards_to_keep == 7 and free else 2
+    min_lands = 3 if free else 2
     if hand["Sol Ring"] > 0:
         min_lands = 1
     max_lands = 5 if cards_to_keep > 5 else 6
@@ -202,20 +194,24 @@ def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:
     return min_lands <= hand["Land"] <= max_lands
 
 
+def min_keep(hand: CardBag, card: str) -> int:
+    """How many of the given card should not be put on the bottom"""
+    if card == "Land":
+        return 3 - hand["Sol Ring"] + max(0, hand["Rock"] - 3)
+    if card == "Rock":
+        if hand["Land"] >= 3 or hand["Rock"] >= 3:
+            return 1
+        return 2
+    return 0
+
+
 def cards_to_bottom(hand: CardBag, count: int) -> CardBag:
-    land_to_bottom = max(0, min(count, 4 - nr_spells(hand)))
-    bottom = CardBag({"Land": land_to_bottom})
-    count -= land_to_bottom
-    max_rocks = 2 if hand["Land"] >= 3 else 3
-    if hand["Rock"] >= max_rocks:
-        bottomable = min(hand["Rock"] - 1, count)
-        bottom = bottom.add("Rock", bottomable)
-        count -= bottomable
     descending_cmc = [f"{cmc} CMC" for cmc in range(6, 0, -1)]
-    for spell in descending_cmc + ["Rock"]:
+    bottom = CardBag({})
+    for card in ["Land", "Rock"] + descending_cmc:
         if count == 0:
             break
-        bottomable = min(hand[spell], count)
-        bottom = bottom.add(spell, bottomable)
+        bottomable = max(0, min(count, hand[card] - min_keep(hand, card)))
+        bottom = bottom.add(card, bottomable)
         count -= bottomable
     return bottom

@@ -23,11 +23,20 @@ class CardBag(UserDict):
         if value > 0:
             super().__setitem__(key, value)
         elif key in self.data:
-            # for equality tests, delete all "0" values from the dictionary
+            # This happens all the time currently, should fix it eventually
+            # logger.warning(f"Mutation: setting {key}=0 in {self}")
             self.pop(key)
 
     def __getitem__(self, key: str) -> int:
         return self.data.get(key, 0)
+
+    def __add__(self, other: "CardBag") -> "CardBag":
+        return CardBag(
+            {
+                card: self[card] + other[card]
+                for card in self.keys() | other.keys()
+            }
+        )
 
     def __sub__(self, other: "CardBag") -> "CardBag":
         return CardBag(
@@ -36,21 +45,6 @@ class CardBag(UserDict):
 
     def add(self, card: str, count: int) -> "CardBag":
         return CardBag({**self.data, card: self[card] + count})
-
-    def as_legacy_dict(self):
-        return {
-            "Land": 0,
-            "Rock": 0,
-            "Sol Ring": 0,
-            "Draw": 0,
-            "1 CMC": 0,
-            "2 CMC": 0,
-            "3 CMC": 0,
-            "4 CMC": 0,
-            "5 CMC": 0,
-            "6 CMC": 0,
-            **self,
-        }
 
 
 @dataclass
@@ -191,6 +185,8 @@ class GameState:
         """
         self.hand = self.hand - selection
 
+    def add_to_hand(self, selection: CardBag):
+        self.hand += selection
 
 def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:
     """Should we keep this hand or ship it?

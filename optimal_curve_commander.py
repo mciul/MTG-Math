@@ -34,9 +34,10 @@ initial_land = 38
 initial_draw = 0
 
 # num_simulations = 10000
-initial_num_simulations = 100
+# initial_num_simulations = 100
 # target_num_simulations = 200000
 target_num_simulations = 2000
+initial_num_simulations = target_num_simulations // 20
 
 
 initial_curve = Curve(
@@ -74,7 +75,8 @@ def run_one_sim(
         logger.debug(f"Opening hand: {state.hand}")
         if do_we_keep(state.hand, handsize, free):
             logger.debug(f"Keeping opening hand with {handsize} cards")
-            hand = state.hand - cards_to_bottom(state.hand, 7 - handsize)
+            state.bottom_from_hand(cards_to_bottom(state.hand, 7 - handsize))
+            hand = state.hand.copy()
             library = state.library.copy()
             logger.debug(f"After bottoming: {hand}")
             break

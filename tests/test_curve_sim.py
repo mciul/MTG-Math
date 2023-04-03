@@ -126,6 +126,16 @@ def test_game_state_start_has_shuffled_library_and_hand():
         assert len(matches) + state.hand[name] == count
 
 
+def test_game_state_add_to_hand():
+    curve = Curve(6, 12, 13, 0, 13, 8, 7, 0, 39)
+    state = GameState.start(curve.decklist)
+    orig_hand = state.hand.copy()
+    orig_2cmc = orig_hand["2 CMC"]
+    state.add_to_hand(CardBag({"2 CMC": 1}))
+    assert state.hand["2 CMC"] == orig_2cmc + 1
+    assert state.hand == orig_hand + CardBag({"2 CMC": 1})
+
+
 def test_bottom_three_lands():
     state = game_with_hand(CardBag({"Land": 7}))
     state.bottom_from_hand(CardBag({"Land": 3}))
@@ -257,9 +267,27 @@ def test_do_we_keep_four(spells: int):
     assert do_we_keep(hand, 4)
 
 
+def test_cardbag_equal_with_zeros():
+    assert CardBag({"Land": 7}) == CardBag({"Land": 7, "Sol Ring": 0})
+
+
 def test_cardbag_with_negative_count_raises_error():
     with raises(ValueError):
         CardBag({"2 CMC": 2, "Sol Ring": 0, "Land": -1})
+
+
+def test_cardbag_minus():
+    bag1 = CardBag({"Land": 2, "1 CMC": 2, "4 CMC": 1})
+    bag2 = CardBag({"1 CMC": 1, "4 CMC": 1})
+    assert bag1 - bag2 == CardBag({"Land": 2, "1 CMC": 1})
+
+
+def test_cardbag_plus():
+    bag1 = CardBag({"Land": 2, "1 CMC": 1, "2 CMC": 1})
+    bag2 = CardBag({"2 CMC": 1, "4 CMC": 1})
+    assert bag1 + bag2 == CardBag(
+        {"Land": 2, "1 CMC": 1, "2 CMC": 2, "4 CMC": 1}
+    )
 
 
 def test_cards_to_bottom_when_keeping_seven():

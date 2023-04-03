@@ -211,13 +211,11 @@ def cards_to_bottom(hand: CardBag, count: int) -> CardBag:
         bottomable = min(hand["Rock"] - 1, count)
         bottom = bottom.add("Rock", bottomable)
         count -= bottomable
-    for cmc in range(6, 0, -1):
-        spell = f"{cmc} CMC"
+    descending_cmc = [f"{cmc} CMC" for cmc in range(6, 0, -1)]
+    for spell in descending_cmc + ["Rock"]:
+        if count == 0:
+            break
         bottomable = min(hand[spell], count)
         bottom = bottom.add(spell, bottomable)
         count -= bottomable
-    # In case of unusual all land and all rock hands, bottom the remainder
-    bottomable = min(hand["Rock"], count)
-    bottom = bottom.add("Rock", bottomable)
-    count -= bottomable
     return bottom

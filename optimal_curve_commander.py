@@ -3,7 +3,14 @@ from itertools import product
 import random
 import logging
 
-from mtg_math.curve_sim import nearby_values, CurveTuple, Curve, GameState
+from mtg_math.curve_sim import (
+    nearby_values,
+    CurveTuple,
+    Curve,
+    GameState,
+    do_we_keep,
+    cards_to_bottom,
+)
 
 logger = logging.getLogger()
 # to enable debug:
@@ -45,184 +52,6 @@ initial_curve = Curve(
 )
 
 
-def put_spells_on_bottom(hand, spells_remaining_to_bottom):
-    """
-    Parameters:
-        hand - A dictionary, with the same cardnames as in decklist, with
-            number drawn
-        spells_remaining_to_bottom - The number of spells to bottom after a
-            mulligan (must be <= number of spells in hand)
-    Returns - nothing, it just adjusts the opening hand value by bottoming
-        excess rocks and the most expensive spells after a mull
-    """
-    # If the hand has too much mana, the first card(s) to bottom are all but
-    # one Rock
-    if (hand["Rock"] >= 3) or (hand["Land"] >= 3 and hand["Rock"] >= 2):
-        Bottomable_rock = min(hand["Rock"] - 1, spells_remaining_to_bottom)
-        hand["Rock"] -= Bottomable_rock
-        spells_remaining_to_bottom -= Bottomable_rock
-
-    Bottomable_cmc_6 = min(hand["6 CMC"], spells_remaining_to_bottom)
-    hand["6 CMC"] -= Bottomable_cmc_6
-    spells_remaining_to_bottom -= Bottomable_cmc_6
-
-    Bottomable_cmc_5 = min(hand["5 CMC"], spells_remaining_to_bottom)
-    hand["5 CMC"] -= Bottomable_cmc_5
-    spells_remaining_to_bottom -= Bottomable_cmc_5
-
-    Bottomable_cmc_4 = min(hand["4 CMC"], spells_remaining_to_bottom)
-    hand["4 CMC"] -= Bottomable_cmc_4
-    spells_remaining_to_bottom -= Bottomable_cmc_4
-
-    Bottomable_cmc_3 = min(hand["3 CMC"], spells_remaining_to_bottom)
-    hand["3 CMC"] -= Bottomable_cmc_3
-    spells_remaining_to_bottom -= Bottomable_cmc_3
-
-    Bottomable_cmc_2 = min(hand["2 CMC"], spells_remaining_to_bottom)
-    hand["2 CMC"] -= Bottomable_cmc_2
-    spells_remaining_to_bottom -= Bottomable_cmc_2
-
-    Bottomable_cmc_1 = min(hand["1 CMC"], spells_remaining_to_bottom)
-    hand["1 CMC"] -= Bottomable_cmc_1
-    spells_remaining_to_bottom -= Bottomable_cmc_1
-
-    # Card advantage becomes more important after a mulligan,
-    # so bottom that last
-    Bottomable_draw = min(hand["Draw"], spells_remaining_to_bottom)
-    hand["Draw"] -= Bottomable_draw
-    spells_remaining_to_bottom -= Bottomable_draw
-
-    # In case of unusual all land and all rock hands, bottom the remainder
-    Bottomable_rock = min(hand["Rock"], spells_remaining_to_bottom)
-    hand["Rock"] -= Bottomable_rock
-    spells_remaining_to_bottom -= Bottomable_rock
-
-
-def put_cards_on_bottom(
-    hand: Dict[str, int], cards_to_keep: Union[int, Tuple[int, str]]
-) -> Dict[str, int]:
-    new_hand = hand.copy()
-    if cards_to_keep == 6:
-        if nr_spells(hand) > 3:
-            put_spells_on_bottom(new_hand, 1)
-        else:
-            # The hand has 0, 1, 2, or 3 spells so we put a land on
-            # the bottom
-            new_hand["Land"] -= 1
-    if cards_to_keep == 5:
-        # We have to bottom. Ideal would be 3 land, 1 spell, 1 rock
-        if nr_spells(new_hand) > 3:
-            # Two spells on the bottom
-            put_spells_on_bottom(new_hand, 2)
-        elif nr_spells(new_hand) == 3:
-            # One land, one spell on the bottom
-            new_hand["Land"] -= 1
-            put_spells_on_bottom(new_hand, 1)
-        else:
-            # The hand has 0, 1, or 2 spells so we put two land on
-            # the bottom
-            new_hand["Land"] -= 2
-    if cards_to_keep == 4:
-        # We have to bottom. Ideal would be 3 land, 1 rock
-        if nr_spells(new_hand) > 3:
-            # Three spells on the bottom
-            put_spells_on_bottom(new_hand, 3)
-        elif nr_spells(new_hand) == 3:
-            # One land, two spell on the bottom
-            new_hand["Land"] -= 1
-            put_spells_on_bottom(new_hand, 2)
-        elif nr_spells(new_hand) == 2:
-            # Two land, one spell on the bottom
-            new_hand["Land"] -= 2
-            put_spells_on_bottom(new_hand, 1)
-        else:
-            # The hand has 0 or 1 spell so we put three land on the
-            # bottom
-            new_hand["Land"] -= 3
-
-    return new_hand
-
-
-def do_we_keep(
-    hand: Dict[str, int], cards_to_keep=Union[int, Tuple[int, str]]
-) -> bool:
-    # Check to see if we keep
-    if cards_to_keep == (7, "free"):
-        if (
-            hand["Land"] >= 3 and hand["Land"] <= 5 and nr_mana(hand) <= 5
-        ) or (
-            hand["Land"] >= 1 and hand["Land"] <= 5 and hand["Sol Ring"] == 1
-        ):
-            return True
-    if cards_to_keep == 7:
-        if (
-            hand["Land"] >= 2 and hand["Land"] <= 5 and nr_mana(hand) <= 5
-        ) or (
-            hand["Land"] >= 1 and hand["Land"] <= 5 and hand["Sol Ring"] == 1
-        ):
-            return True
-    if cards_to_keep == 6:
-        if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
-            hand["Land"] >= 1 and hand["Sol Ring"] == 1
-        ):
-            return True
-    if cards_to_keep == 5:
-        if (hand["Land"] >= 2 and hand["Land"] <= 4) or (
-            hand["Land"] >= 1 and hand["Sol Ring"] == 1
-        ):
-            return True
-    # always keep 4
-    return True
-
-
-def nr_spells(hand):
-    return (
-        hand["1 CMC"]
-        + hand["2 CMC"]
-        + hand["3 CMC"]
-        + hand["4 CMC"]
-        + hand["5 CMC"]
-        + hand["6 CMC"]
-        + hand["Rock"]
-        + hand["Draw"]
-    )
-
-
-def nr_mana(hand):
-    return hand["Land"] + hand["Rock"]
-
-
-def construct_library_then_shuffle(decklist: Dict[str, int]) -> List[str]:
-    library = []
-    for card in decklist.keys():
-        library += [card] * decklist[card]
-    random.shuffle(library)
-    return library
-
-
-def construct_random_opening_hand(library: List[str]) -> List[str]:
-    """draw a hand from the library and return the hand
-
-    Side effects: mutates the library by removing the cards drawn
-    """
-    hand = {
-        "1 CMC": 0,
-        "2 CMC": 0,
-        "3 CMC": 0,
-        "4 CMC": 0,
-        "5 CMC": 0,
-        "6 CMC": 0,
-        "Rock": 0,
-        "Sol Ring": 0,
-        "Draw": 0,
-        "Land": 0,
-    }
-    for _ in range(7):
-        card_drawn = library.pop(0)
-        hand[card_drawn] += 1
-    return hand
-
-
 def run_one_sim(
     decklist: Dict[str, int], commander_costs: List[int]
 ) -> Tuple[float, int]:
@@ -239,19 +68,17 @@ def run_one_sim(
     # Draw opening hands and mulligan
     logger.debug("----------")
 
-    for handsize in [(7, "free"), 7, 6, 5, 4]:
+    for handsize, free in zip([7, 7, 6, 5, 4], [True] + [False] * 4):
         # We may mull free, 7, 6, or 5 cards and keep every 4-card hand
-        # Once we actually keep, the variable keephand will be set to True
         state = GameState.start(decklist)
-        library = state.library.copy()
-        hand = state.hand.copy()
-        logger.debug(f"Opening hand: {hand}")
-        hand = put_cards_on_bottom(hand, handsize)
-        keephand = do_we_keep(hand)
-        logger.debug(f"After bottoming: {hand}")
-        logger.debug(f"Keephand: {keephand}")
-        if keephand:
+        logger.debug(f"Opening hand: {state.hand}")
+        if do_we_keep(state.hand, handsize, free):
+            logger.debug(f"Keeping opening hand with {handsize} cards")
+            hand = state.hand - cards_to_bottom(state.hand, 7 - handsize)
+            library = state.library.copy()
+            logger.debug(f"After bottoming: {hand}")
             break
+        logger.debug(f"Not keeping {handsize} cards - mulliganing")
 
     # Add commander as a free spell
     for commander_cost in commander_costs:
@@ -349,10 +176,10 @@ def run_one_sim(
                 # Since mana_available - 2 could be 2, we also gotta check
                 # if the cards are distinct
                 if (
-                    hand["2 CMC"] >= 1
+                    mana_available - 2 != 2
+                    and hand["2 CMC"] >= 1
                     and hand[f"{mana_available - 2} CMC"] >= 1
-                    and hand["2 CMC"] + hand[f"{mana_available - 2} CMC"] >= 2
-                ):
+                ) or (mana_available - 2 == 2 and hand["2 CMC"] >= 2):
                     hand["2 CMC"] -= 1
                     hand[f"{mana_available - 2} CMC"] -= 1
                     compounded_mana_spent += mana_available

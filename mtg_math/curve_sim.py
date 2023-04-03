@@ -37,6 +37,21 @@ class CardBag(UserDict):
     def add(self, card: str, count: int) -> "CardBag":
         return CardBag({**self.data, card: self[card] + count})
 
+    def as_legacy_dict(self):
+        return {
+            "Land": 0,
+            "Rock": 0,
+            "Sol Ring": 0,
+            "Draw": 0,
+            "1 CMC": 0,
+            "2 CMC": 0,
+            "3 CMC": 0,
+            "4 CMC": 0,
+            "5 CMC": 0,
+            "6 CMC": 0,
+            **self,
+        }
+
 
 @dataclass
 class Curve:
@@ -162,10 +177,10 @@ class GameState:
         for card, count in decklist.items():
             library += [card] * count
         random.shuffle(library)
-        hand: CardBag = defaultdict(int)
+        hand = CardBag({})
         for _ in range(7):
             card = library.pop(0)
-            hand[card] += 1
+            hand = hand.add(card, 1)
         return cls(library, hand)
 
     def bottom_from_hand(self, selection: CardBag):
@@ -181,7 +196,7 @@ def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:
     """Should we keep this hand or ship it?
 
     cards_to_keep tells us how many we can keep after bottoming
-    free tells us if the next mulligan is free (we'll keep 7)
+    free tells us if the next mulligan is free (we'll keep 7 again)
     """
     if cards_to_keep <= 4:
         return True

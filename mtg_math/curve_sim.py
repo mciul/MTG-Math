@@ -258,49 +258,18 @@ def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:
 
 
 def cards_to_bottom(hand: CardBag, count: int) -> CardBag:
-    bottom = CardBag({})
-    if count == 0:
-        return bottom
-    if nr_spells(hand) <= 3 and count == 1:
-        return CardBag({"Land": 1})
-    if nr_spells(hand) == 3 and count >= 2:
-        bottom = bottom.add("Land", 1)
-        count -= 1
-    if nr_spells(hand) < 3 and count == 2:
-        return CardBag({"Land": 2})
-    if nr_spells(hand) < 2 and count == 3:
-        return CardBag({"Land": 3})
-    if nr_spells(hand) == 2 and count == 3:
-        bottom = bottom.add("Land", 2)
-        count -= 2
+    land_to_bottom = max(0, min(count, 4 - nr_spells(hand)))
+    bottom = CardBag({"Land": land_to_bottom})
+    count -= land_to_bottom
     if (hand["Rock"] >= 3) or (hand["Land"] >= 3 and hand["Rock"] >= 2):
         Bottomable_rock = min(hand["Rock"] - 1, count)
         bottom = bottom.add("Rock", Bottomable_rock)
         count -= Bottomable_rock
-    Bottomable_cmc_6 = min(hand["6 CMC"], count)
-    bottom = bottom.add("6 CMC", Bottomable_cmc_6)
-    count -= Bottomable_cmc_6
-
-    Bottomable_cmc_5 = min(hand["5 CMC"], count)
-    bottom = bottom.add("5 CMC", Bottomable_cmc_5)
-    count -= Bottomable_cmc_5
-
-    Bottomable_cmc_4 = min(hand["4 CMC"], count)
-    bottom = bottom.add("4 CMC", Bottomable_cmc_4)
-    count -= Bottomable_cmc_4
-
-    Bottomable_cmc_3 = min(hand["3 CMC"], count)
-    bottom = bottom.add("3 CMC", Bottomable_cmc_3)
-    count -= Bottomable_cmc_3
-
-    Bottomable_cmc_2 = min(hand["2 CMC"], count)
-    bottom = bottom.add("2 CMC", Bottomable_cmc_2)
-    count -= Bottomable_cmc_2
-
-    Bottomable_cmc_1 = min(hand["1 CMC"], count)
-    bottom = bottom.add("1 CMC", Bottomable_cmc_1)
-    count -= Bottomable_cmc_1
-
+    for cmc in range(6, 0, -1):
+        spell = f"{cmc} CMC"
+        bottomable = min(hand[spell], count)
+        bottom = bottom.add(spell, bottomable)
+        count -= bottomable
     # In case of unusual all land and all rock hands, bottom the remainder
     Bottomable_rock = min(hand["Rock"], count)
     bottom = bottom.add("Rock", Bottomable_rock)

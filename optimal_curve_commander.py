@@ -6,6 +6,7 @@ import logging
 from mtg_math.curve_sim import (
     nearby_values,
     CurveTuple,
+    CardBag,
     Curve,
     GameState,
     do_we_keep,
@@ -53,8 +54,32 @@ initial_curve = Curve(
 )
 
 
+def shuffle_and_take_mulligans(decklist: CardBag) -> GameState:
+    """Return the game state after finally keeping a hand"""
+    for handsize, free in zip([7, 7, 6, 5, 4], [True] + [False] * 4):
+        state = GameState.start(decklist)
+        logger.debug(f"Opening hand: {state.hand}")
+        if do_we_keep(state.hand, handsize, free):
+            logger.debug(f"Keeping opening hand with {handsize} cards")
+            state.bottom_from_hand(cards_to_bottom(state.hand, 7 - handsize))
+            logger.debug(f"After bottoming: {state.hand}")
+            return state
+        logger.debug(f"Not keeping {handsize} cards - mulliganing")
+    raise RuntimeError("We should never mulligan a 4-card hand")
+
+
+def add_commanders(state: GameState, commander_costs: List[int]) -> GameState:
+    """Put commanders in the game's 'hand'"""
+    state = shuffle_and_take_mulligans(decklist)
+    commanders = CardBag({})
+    for commander_cost in commander_costs:
+        commanders.add(f"{commander_cost} CMC", 1)
+    state.add_to_hand(commanders)
+    return state
+
+
 def run_one_sim(
-    decklist: Dict[str, int], commander_costs: List[int]
+    decklist: CardBag, commander_costs: List[int]
 ) -> Tuple[float, int]:
     # Initialize variables
     lands_in_play = 0
@@ -68,24 +93,9 @@ def run_one_sim(
 
     # Draw opening hands and mulligan
     logger.debug("----------")
-
-    for handsize, free in zip([7, 7, 6, 5, 4], [True] + [False] * 4):
-        # We may mull free, 7, 6, or 5 cards and keep every 4-card hand
-        state = GameState.start(decklist)
-        logger.debug(f"Opening hand: {state.hand}")
-        if do_we_keep(state.hand, handsize, free):
-            logger.debug(f"Keeping opening hand with {handsize} cards")
-            state.bottom_from_hand(cards_to_bottom(state.hand, 7 - handsize))
-            hand = state.hand.copy()
-            library = state.library.copy()
-            logger.debug(f"After bottoming: {hand}")
-            break
-        logger.debug(f"Not keeping {handsize} cards - mulliganing")
-
-    # Add commander as a free spell
-    for commander_cost in commander_costs:
-        hand[f"{commander_cost} CMC"] += 1
-    logger.debug(f"After adding commander: {hand}")
+    state = shuffle_and_take_mulligans(decklist)
+    state = add_commanders(state, commander_costs)
+    logger.debug(f"After adding commander: {state.hand}")
 
     for turn in range(1, turn_of_interest + 1):
         # For turn_of_interest = 7, this range is {1, 2, ..., 7} so we
@@ -100,8 +110,8 @@ def run_one_sim(
         compounded_mana_spent += cumulative_mana_in_play
 
         # In Commander, you always draw a card, even when playing first
-        card_drawn = library.pop(0)
-        hand[card_drawn] += 1
+        card_drawn = state.draw()
+        hand = state.hand
 
         # Play a land if possible
         land_played = False

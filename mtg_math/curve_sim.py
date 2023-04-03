@@ -40,7 +40,7 @@ class CardBag(UserDict):
 
     def __sub__(self, other: "CardBag") -> "CardBag":
         return CardBag(
-            {card: count - other[card] for card, count in self.items()}
+            {card: max(0, count - other[card]) for card, count in self.items()}
         )
 
     def add(self, card: str, count: int) -> "CardBag":
@@ -177,16 +177,39 @@ class GameState:
             hand = hand.add(card, 1)
         return cls(library, hand)
 
-    def bottom_from_hand(self, selection: CardBag):
+    def bottom_from_hand(self, selection: CardBag) -> None:
         """put cards from hand onto the bottom
 
         Actually, we just delete the cards, assuming we'll never get that
         far into the library
+
+        Side effects: mutates game state by replacing hand
         """
         self.hand = self.hand - selection
 
+    def draw(self) -> str:
+        """Update state by drawing 1 card from library to hand
+
+        Returns the card drawn
+
+        Side effects: mutates game state by replacing hand and mutating library
+        """
+        drawn = self.library.pop(0)
+        self.hand = self.hand.add(drawn, 1)
+        return drawn
+
+    def play_from_hand(self, card: str) -> None:
+        """Update game state as if the card were played
+
+        Side effects: mutates game state by replacing hand
+
+        TODO: also update cards in play, mana spent, etc
+        """
+        self.hand -= CardBag({card: 1})
+
     def add_to_hand(self, selection: CardBag):
         self.hand += selection
+
 
 def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:
     """Should we keep this hand or ship it?

@@ -148,6 +148,20 @@ def test_bottom_lands_and_spells():
     assert state.hand == CardBag({"1 CMC": 1, "6 CMC": 1, "Land": 3})
 
 
+def test_game_state_draw_updates_state_and_returns_drawn_card():
+    state = game_with_hand(CardBag({"Land": 4, "1 CMC": 1}))
+    old_library = state.library.copy()
+    drawn = state.draw()
+    assert state.hand == CardBag({"Land": 4, "1 CMC": 1}).add(drawn, 1)
+    assert state.library == old_library[1:]
+
+
+def test_game_state_play_from_hand_removes_card_from_hand():
+    state = game_with_hand(CardBag({"Land": 4, "1 CMC": 2}))
+    state.play_from_hand("Land")
+    assert state.hand == CardBag({"Land": 3, "1 CMC": 2})
+
+
 @mark.parametrize(
     "count,free", [(7, True), (7, False), (6, False), (5, False)]
 )
@@ -280,6 +294,18 @@ def test_cardbag_minus():
     bag1 = CardBag({"Land": 2, "1 CMC": 2, "4 CMC": 1})
     bag2 = CardBag({"1 CMC": 1, "4 CMC": 1})
     assert bag1 - bag2 == CardBag({"Land": 2, "1 CMC": 1})
+
+
+def test_cardbag_minus_too_much_stops_at_zero():
+    bag1 = CardBag({"Land": 2, "Sol Ring": 1})
+    bag2 = CardBag({"Land": 3})
+    assert bag1 - bag2 == CardBag({"Sol Ring": 1})
+
+
+def test_cardbag_minus_card_we_dont_have_does_nothing():
+    bag1 = CardBag({"Land": 2})
+    bag2 = CardBag({"Land": 1, "Sol Ring": 1})
+    assert bag1 - bag2 == CardBag({"Land": 1})
 
 
 def test_cardbag_plus():

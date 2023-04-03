@@ -177,10 +177,6 @@ class GameState:
         self.hand = self.hand - selection
 
 
-def nr_mana(hand: CardBag) -> int:
-    return hand.get("Land", 0) + hand.get("Rock", 0)
-
-
 def nr_spells(hand: CardBag) -> int:
     return (
         hand["1 CMC"]
@@ -192,10 +188,6 @@ def nr_spells(hand: CardBag) -> int:
         + hand["Rock"]
         + hand["Draw"]
     )
-
-
-def put_land_on_bottom(hand: CardBag, count: int) -> CardBag:
-    return hand - CardBag({"Land": count})
 
 
 def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:

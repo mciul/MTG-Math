@@ -194,53 +194,6 @@ def nr_spells(hand: CardBag) -> int:
     )
 
 
-def put_spells_on_bottom(
-    hand: CardBag, spells_remaining_to_bottom: int
-) -> CardBag:
-    # If the hand has too much mana, the first card(s) to bottom are all but one Rock
-    hand = hand.copy()
-    if (hand["Rock"] >= 3) or (hand["Land"] >= 3 and hand["Rock"] >= 2):
-        Bottomable_rock = min(hand["Rock"] - 1, spells_remaining_to_bottom)
-        hand["Rock"] -= Bottomable_rock
-        spells_remaining_to_bottom -= Bottomable_rock
-
-    Bottomable_cmc_6 = min(hand["6 CMC"], spells_remaining_to_bottom)
-    hand["6 CMC"] -= Bottomable_cmc_6
-    spells_remaining_to_bottom -= Bottomable_cmc_6
-
-    Bottomable_cmc_5 = min(hand["5 CMC"], spells_remaining_to_bottom)
-    hand["5 CMC"] -= Bottomable_cmc_5
-    spells_remaining_to_bottom -= Bottomable_cmc_5
-
-    Bottomable_cmc_4 = min(hand["4 CMC"], spells_remaining_to_bottom)
-    hand["4 CMC"] -= Bottomable_cmc_4
-    spells_remaining_to_bottom -= Bottomable_cmc_4
-
-    Bottomable_cmc_3 = min(hand["3 CMC"], spells_remaining_to_bottom)
-    hand["3 CMC"] -= Bottomable_cmc_3
-    spells_remaining_to_bottom -= Bottomable_cmc_3
-
-    Bottomable_cmc_2 = min(hand["2 CMC"], spells_remaining_to_bottom)
-    hand["2 CMC"] -= Bottomable_cmc_2
-    spells_remaining_to_bottom -= Bottomable_cmc_2
-
-    Bottomable_cmc_1 = min(hand["1 CMC"], spells_remaining_to_bottom)
-    hand["1 CMC"] -= Bottomable_cmc_1
-    spells_remaining_to_bottom -= Bottomable_cmc_1
-
-    # Card advantage becomes more important after a mulligan, so bottom that last
-    Bottomable_draw = min(hand["Draw"], spells_remaining_to_bottom)
-    hand["Draw"] -= Bottomable_draw
-    spells_remaining_to_bottom -= Bottomable_draw
-
-    # In case of unusual all land and all rock hands, bottom the remainder
-    Bottomable_rock = min(hand["Rock"], spells_remaining_to_bottom)
-    hand["Rock"] -= Bottomable_rock
-    spells_remaining_to_bottom -= Bottomable_rock
-
-    return hand
-
-
 def put_land_on_bottom(hand: CardBag, count: int) -> CardBag:
     return hand - CardBag({"Land": count})
 

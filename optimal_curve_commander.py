@@ -11,6 +11,7 @@ from mtg_math.curve_sim import (
     GameState,
     do_we_keep,
     cards_to_bottom,
+    take_turn,
 )
 
 logger = logging.getLogger()
@@ -82,14 +83,9 @@ def run_one_sim(
     decklist: CardBag, commander_costs: List[int]
 ) -> Tuple[float, int]:
     # Initialize variables
-    lands_in_play = 0
-    rocks_in_play = 0
-    compounded_mana_spent = 0
-    cumulative_mana_in_play = 0
     turn_of_interest = 7
-    mana_available = 0
-    draw_cost = 4  # Cost is 3 for Divination, 4 for Harmonize
-    draw_draw = 3  # Draw is 2 for Divination, 3 for Harmonize
+    # draw_cost = 4  # Cost is 3 for Divination, 4 for Harmonize
+    # draw_draw = 3  # Draw is 2 for Divination, 3 for Harmonize
 
     # Draw opening hands and mulligan
     logger.debug("----------")
@@ -97,196 +93,19 @@ def run_one_sim(
     state = add_commanders(state, commander_costs)
     logger.debug(f"After adding commander: {state.hand}")
 
+    lucky = (
+        1
+        if state.hand["Sol Ring"] == 1 or state.library[0] == "Sol Ring"
+        else 0
+    )
+
     for turn in range(1, turn_of_interest + 1):
-        # For turn_of_interest = 7, this range is {1, 2, ..., 7} so we
-        # consider mana spent over the first 7 turns
-        # compounded_mana_spent is what we return at the end
-        # At the start of every turn, we add to it the sum of mana values of
-        # all 1-drops, 2-drops, ..., 6-drops that we have cast thus far
-        # During the turn, we add to it the mana value of any 1-drop, 2-drop,
-        # ..., 6-drop we cast
-        # Note that mana rocks or card draw spells don't count towards this
-
-        compounded_mana_spent += cumulative_mana_in_play
-
-        # In Commander, you always draw a card, even when playing first
-        card_drawn = state.draw()
-        hand = state.hand
-
-        # Play a land if possible
-        land_played = False
-        if hand["Land"] > 0:
-            hand["Land"] -= 1
-            lands_in_play += 1
-            land_played = True
-
-        mana_available = lands_in_play + rocks_in_play
-        mana_available_at_start_turn = mana_available
-        we_cast_a_nonrock_spell_this_turn = False
-
-        logger.debug(
-            f"TURN {turn}. Card drawn {card_drawn}. {lands_in_play} "
-            f"lands, {rocks_in_play} rocks. Mana available "
-            f"{mana_available}. Cumulative mana {compounded_mana_spent}. "
-            f"Hand: {hand}"
-        )
-
-        if turn == 1:
-            lucky = 1 if hand["Sol Ring"] == 1 else 0
-            if (mana_available >= 1) and hand["Sol Ring"] == 1:
-                hand["Sol Ring"] -= 1
-                # Sol Ring counts as 2 mana rocks
-                rocks_in_play += 2
-                # Also cast Signet if possible
-                if hand["Rock"] >= 1:
-                    hand["Rock"] -= 1
-                    rocks_in_play += 1
-                mana_available = 0
-                # We can't do anything else after a turn one Sol Ring
-
-        if turn >= 2:
-            if (mana_available >= 1) and hand["Sol Ring"] == 1:
-                hand["Sol Ring"] -= 1
-                # Costs one mana, immediately adds two. Card is utterly broken
-                mana_available += 1
-                rocks_in_play += 2
-
-        if turn == 2:
-            Castable_rock = min(hand["Rock"], mana_available // 2)
-            hand["Rock"] -= Castable_rock
-            # Rocks cost 2 each, then tap for 1 each
-            mana_available -= Castable_rock * 2
-            mana_available += Castable_rock
-            rocks_in_play += Castable_rock
-            # Rocks DO NOT count as mana spent or mana in play. Mana in play
-            # represents creatures, planeswalkers, etc. Rocks are like lands
-
-        # On turn 3 or 4, cast a mana rock and a (mana available - 1) drop if
-        # possible
-        if turn in [3, 4] and mana_available >= 2 and mana_available <= 7:
-            cmc_of_followup_spell = mana_available - 1
-            if hand["Rock"] >= 1 and hand[f"{cmc_of_followup_spell} CMC"] >= 1:
-                hand["Rock"] -= 1
-                mana_available -= 1
-                rocks_in_play += 1
-                hand[f"{cmc_of_followup_spell} CMC"] -= 1
-                mana_available -= cmc_of_followup_spell
-                compounded_mana_spent += cmc_of_followup_spell
-                cumulative_mana_in_play += cmc_of_followup_spell
-                we_cast_a_nonrock_spell_this_turn = True
-
-        logger.debug(
-            f"After rocks, mana available {mana_available}. Cumulative "
-            f"mana {compounded_mana_spent}. Hand: {hand}"
-        )
-
-        if mana_available >= 3 and mana_available <= 6:
-            if hand[f"{mana_available} CMC"] == 0:
-                # We have, for example, 5 mana but don't have a 5-drop in hand
-                # But let's check if we can cast a 2 and a 3 before checking
-                # for 4s
-                # Since mana_available - 2 could be 2, we also gotta check
-                # if the cards are distinct
-                if (
-                    mana_available - 2 != 2
-                    and hand["2 CMC"] >= 1
-                    and hand[f"{mana_available - 2} CMC"] >= 1
-                ) or (mana_available - 2 == 2 and hand["2 CMC"] >= 2):
-                    hand["2 CMC"] -= 1
-                    hand[f"{mana_available - 2} CMC"] -= 1
-                    compounded_mana_spent += mana_available
-                    cumulative_mana_in_play += mana_available
-                    mana_available = 0
-                    we_cast_a_nonrock_spell_this_turn = True
-
-        Castable_cmc_6 = min(hand["6 CMC"], mana_available // 6)
-        hand["6 CMC"] -= Castable_cmc_6
-        mana_available -= Castable_cmc_6 * 6
-        # Six drops are very powerful and count as 6.2 mana each
-        compounded_mana_spent += Castable_cmc_6 * 6.2
-        cumulative_mana_in_play += Castable_cmc_6 * 6.2
-
-        Castable_cmc_5 = min(hand["5 CMC"], mana_available // 5)
-        hand["5 CMC"] -= Castable_cmc_5
-        mana_available -= Castable_cmc_5 * 5
-        compounded_mana_spent += Castable_cmc_5 * 5
-        cumulative_mana_in_play += Castable_cmc_5 * 5
-
-        Castable_cmc_4 = min(hand["4 CMC"], mana_available // 4)
-        hand["4 CMC"] -= Castable_cmc_4
-        mana_available -= Castable_cmc_4 * 4
-        compounded_mana_spent += Castable_cmc_4 * 4
-        cumulative_mana_in_play += Castable_cmc_4 * 4
-
-        Castable_cmc_3 = min(hand["3 CMC"], mana_available // 3)
-        hand["3 CMC"] -= Castable_cmc_3
-        mana_available -= Castable_cmc_3 * 3
-        compounded_mana_spent += Castable_cmc_3 * 3
-        cumulative_mana_in_play += Castable_cmc_3 * 3
-
-        Castable_cmc_2 = min(hand["2 CMC"], mana_available // 2)
-        hand["2 CMC"] -= Castable_cmc_2
-        mana_available -= Castable_cmc_2 * 2
-        compounded_mana_spent += Castable_cmc_2 * 2
-        cumulative_mana_in_play += Castable_cmc_2 * 2
-
-        Castable_cmc_1 = min(hand["1 CMC"], mana_available // 1)
-        hand["1 CMC"] -= Castable_cmc_1
-        mana_available -= Castable_cmc_1 * 1
-        compounded_mana_spent += Castable_cmc_1 * 1
-        cumulative_mana_in_play += Castable_cmc_1 * 1
-
-        Castable_rock = min(hand["Rock"], mana_available // 2)
-        hand["Rock"] -= Castable_rock
-        mana_available -= Castable_rock * 2
-        mana_available += Castable_rock
-        rocks_in_play += Castable_rock
-
-        if (
-            Castable_cmc_6 >= 1
-            or Castable_cmc_5 >= 1
-            or Castable_cmc_4 >= 1
-            or Castable_cmc_3 >= 1
-            or Castable_cmc_2 >= 1
-            or Castable_cmc_1 >= 1
-        ):
-            we_cast_a_nonrock_spell_this_turn = True
-
-        # If we retroactively notice we could've snuck in a mana rock, do so
-        if (
-            (mana_available_at_start_turn >= 2 and mana_available == 1)
-            and hand["Rock"] >= 1
-            and we_cast_a_nonrock_spell_this_turn
-        ):
-            hand["Rock"] -= 1
-            rocks_in_play += 1
-
-        # Finally, cast card draw spells
-        if draw_cost <= mana_available and hand["Draw"] >= 1:
-            hand["Draw"] -= 1
-            mana_available -= draw_cost
-            for _ in range(draw_draw):
-                card_drawn = library.pop(0)
-                hand[card_drawn] += 1
-            if not land_played and hand["Land"] >= 1:
-                hand["Land"] -= 1
-                lands_in_play += 1
-                mana_available += 1
-                land_played = True
-        # I tried some code to cast spells after a card drawer, but it was
-        # all to no avail as card draw spells were never chosen by the
-        # optimizer regardless
-        # So I deleted that entire part of the code for now
-
-        logger.debug(
-            f"After spells, mana available {mana_available}. Cumulative "
-            f"mana {compounded_mana_spent}. Hand: {hand}"
-        )
+        take_turn(state, turn)
 
     # Return lucky (True if you had Sol Ring on turn 1) to enable better rare
     # event simulation with reduced variance, although that part was cut for
     # time reasons
-    return (compounded_mana_spent, lucky)
+    return (state.compounded_mana_spent, lucky)
 
 
 # Initialize local search algorithm

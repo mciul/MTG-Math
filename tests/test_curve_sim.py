@@ -158,7 +158,7 @@ def test_game_state_draw_updates_state_and_returns_drawn_card():
 
 def test_game_state_play_from_hand_removes_card_from_hand():
     state = game_with_hand(CardBag({"Land": 4, "1 CMC": 2}))
-    state.play_from_hand("Land")
+    state.play_from_hand(CardBag({"Land": 1}))
     assert state.hand == CardBag({"Land": 3, "1 CMC": 2})
 
 

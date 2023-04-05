@@ -6,12 +6,13 @@ from mtg_math.curve_sim import (
     CardBag,
     do_we_keep,
     cards_to_bottom,
+    take_turn,
 )
 
 import logging
 
 logger = logging.getLogger()
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 def game_with_hand(hand: CardBag) -> GameState:
@@ -486,3 +487,106 @@ def test_cards_to_bottom_when_keeping_five(cards, bottom):
 def test_cards_to_bottom_when_keeping_four(cards, bottom):
     hand = CardBag(cards)
     assert cards_to_bottom(hand, 3) == CardBag(bottom)
+
+
+@mark.parametrize(
+    "starting_state,ending_state",
+    [
+        (
+            # play the land we drew
+            GameState(
+                ["Land", "Rock"],
+                CardBag({"4 CMC": 2, "6 CMC": 1, "Land": 3}),
+            ),
+            GameState(
+                ["Rock"],
+                CardBag({"4 CMC": 2, "6 CMC": 1, "Land": 3}),
+                lands_in_play=1,
+                mana_available=1,
+            ),
+        ),
+        (
+            # draw an expensive spell - all we can do is play a land
+            GameState(
+                ["5 CMC", "Land"],
+                CardBag({"4 CMC": 1, "5 CMC": 5, "Land": 2}),
+            ),
+            GameState(
+                ["Land"],
+                CardBag({"4 CMC": 1, "5 CMC": 6, "Land": 1}),
+                lands_in_play=1,
+                mana_available=1,
+            ),
+        ),
+        (
+            # play a land, a Sol Ring, and a rock
+            GameState(
+                ["Rock", "Land"],
+                CardBag({"6 CMC": 2, "Rock": 2, "Sol Ring": 1, "Land": 3}),
+            ),
+            GameState(
+                ["Land"],
+                CardBag({"6 CMC": 2, "Rock": 2, "Land": 2}),
+                lands_in_play=1,
+                rocks_in_play=3,
+            ),
+        ),
+        (
+            # play a land and a 1-drop
+            GameState(
+                ["2 CMC", "3 CMC"],
+                CardBag({"1 CMC": 1, "2 CMC": 3, "Land": 3}),
+            ),
+            GameState(
+                ["3 CMC"],
+                CardBag({"1 CMC": 0, "2 CMC": 4, "Land": 2}),
+                lands_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=1.0,
+            ),
+        ),
+        (
+            # 1 CMC x 2 and 2 CMC with Sol Ring
+            # For some reason, the simulator doesn't let us cast our
+            # 1-drop or 2-drop with the Sol Ring - color restrictions?
+            GameState(
+                ["2 CMC", "3 CMC"],
+                CardBag({"1 CMC": 2, "Sol Ring": 1, "2 CMC": 3, "Land": 1}),
+            ),
+            GameState(
+                ["3 CMC"],
+                CardBag({"1 CMC": 2, "2 CMC": 4, "Land": 0}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+        ),
+        (
+            # 1 CMC with rock and Sol Ring
+            # Even with our "Arcane Signet," the simulator doesn't assume
+            # we can cast a 1-drop. True for Ravnica signets I guess.
+            GameState(
+                ["Rock", "3 CMC"],
+                CardBag({"1 CMC": 2, "Sol Ring": 1, "Rock": 3, "Land": 2}),
+            ),
+            GameState(
+                ["3 CMC"],
+                CardBag({"1 CMC": 2, "Rock": 3, "Land": 1}),
+                lands_in_play=1,
+                rocks_in_play=3,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+        ),
+        (
+            # mull to 4, 1-drop commander, no land
+            GameState(["Rock", "Land"], CardBag({"1 CMC": 3, "Rock": 2})),
+            GameState(
+                ["Land"], CardBag({"1 CMC": 3, "Rock": 3}), lands_in_play=0
+            ),
+        ),
+    ],
+)
+def test_take_turn_one(starting_state, ending_state):
+    assert take_turn(starting_state, 1) == ending_state

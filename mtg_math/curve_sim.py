@@ -173,8 +173,8 @@ class GameState:
     hand: CardBag
     lands_in_play: int = 0
     rocks_in_play: int = 0
-    compounded_mana_spent: int = 0  # how does this relate to the below?
-    cumulative_mana_in_play: int = 0  # WTF does this mean?
+    compounded_mana_spent: float = 0  # how does this relate to the below?
+    cumulative_mana_in_play: float = 0  # WTF does this mean?
     mana_available: int = 0
 
     @classmethod
@@ -297,7 +297,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
     )
 
     if turn == 1:
-        lucky = 1 if state.hand["Sol Ring"] == 1 else 0
         if (state.mana_available >= 1) and state.hand["Sol Ring"] == 1:
             state.play_from_hand(CardBag({"Sol Ring": 1}))
             # Sol Ring counts as 2 mana rocks

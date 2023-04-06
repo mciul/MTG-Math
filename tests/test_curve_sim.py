@@ -590,3 +590,271 @@ def test_cards_to_bottom_when_keeping_four(cards, bottom):
 )
 def test_take_turn_one(starting_state, ending_state):
     assert take_turn(starting_state, 1) == ending_state
+
+
+@mark.parametrize(
+    "starting_state,ending_state",
+    [
+        (
+            # land and 1-drop in play, second 1-drop available
+            GameState(
+                ["1 CMC", "Rock"],
+                CardBag({"6 CMC": 3, "Land": 4}),
+                lands_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=1.0,
+            ),
+            GameState(
+                ["Rock"],
+                CardBag({"6 CMC": 3, "Land": 3}),
+                lands_in_play=2,
+                mana_available=1,
+                cumulative_mana_in_play=2.0,
+                compounded_mana_spent=3.0,
+            ),
+        ),
+        (
+            # land 1-drop in play, two more 1-drops available
+            GameState(
+                ["1 CMC", "Rock"],
+                CardBag({"1 CMC": 1, "3 CMC": 3, "Land": 3}),
+                lands_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=1.0,
+            ),
+            GameState(
+                ["Rock"],
+                CardBag({"3 CMC": 3, "Land": 2}),
+                lands_in_play=2,
+                mana_available=0,
+                cumulative_mana_in_play=3.0,
+                compounded_mana_spent=4.0,
+            ),
+        ),
+        (
+            # land in play, 2 drop available
+            GameState(
+                ["1 CMC", "Rock"],
+                CardBag({"2 CMC": 1, "3 CMC": 3, "Land": 3}),
+                lands_in_play=1,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+            GameState(
+                ["Rock"],
+                CardBag({"1 CMC": 1, "3 CMC": 3, "Land": 2}),
+                lands_in_play=2,
+                mana_available=0,
+                cumulative_mana_in_play=2.0,
+                compounded_mana_spent=2.0,
+            ),
+        ),
+        (
+            # land and 1-drop in play, rock and 2-drop available
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"2 CMC": 3, "Land": 3}),
+                lands_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=1.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"2 CMC": 3, "Land": 2}),
+                lands_in_play=2,
+                rocks_in_play=1,
+                mana_available=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=2.0,
+            ),
+        ),
+        (
+            # land and 1-drop in play, rock and 1 and 2 drops available
+            GameState(
+                ["1 CMC", "1 CMC"],
+                CardBag({"Rock": 1, "2 CMC": 3, "Land": 2}),
+                lands_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=1.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"2 CMC": 3, "Land": 1}),
+                lands_in_play=2,
+                rocks_in_play=1,
+                mana_available=0,
+                cumulative_mana_in_play=2.0,
+                compounded_mana_spent=3.0,
+            ),
+        ),
+        (
+            # land and 1-drop in play, land in hand, sol ring drawn...
+            # rock and 2 drops in hand
+            GameState(
+                ["Sol Ring", "1 CMC"],
+                CardBag({"Rock": 1, "2 CMC": 3, "Land": 2}),
+                lands_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=1.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"2 CMC": 2, "Land": 1}),
+                lands_in_play=2,
+                rocks_in_play=3,
+                mana_available=0,
+                cumulative_mana_in_play=3.0,
+                compounded_mana_spent=4.0,
+            ),
+        ),
+        (
+            # land & 1-drop in play, no land in hand, sol ring drawn
+            # (mull to 4)
+            GameState(
+                ["Sol Ring", "1 CMC"],
+                CardBag({"5 CMC": 4}),
+                lands_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=1.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"5 CMC": 4}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                mana_available=2,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=2.0,
+            ),
+        ),
+        (
+            # land and sol ring in play no second land and no spells
+            GameState(
+                ["4 CMC", "1 CMC"],
+                CardBag({"4 CMC": 4}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"4 CMC": 5}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                mana_available=3,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+        ),
+        (
+            # Land and Sol Ring in play, 3 drop but no second land
+            GameState(
+                ["4 CMC", "1 CMC"],
+                CardBag({"1 CMC": 1, "2 CMC": 1, "3 CMC": 2}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"1 CMC": 1, "2 CMC": 1, "3 CMC": 1, "4 CMC": 1}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                mana_available=0,
+                cumulative_mana_in_play=3.0,
+                compounded_mana_spent=3.0,
+            ),
+        ),
+        (
+            # Land and Sol Ring in play, 1 and 2 drops but no second land
+            GameState(
+                ["4 CMC", "1 CMC"],
+                CardBag({"1 CMC": 2, "2 CMC": 2}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"1 CMC": 1, "2 CMC": 1, "4 CMC": 1}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                mana_available=0,
+                cumulative_mana_in_play=3.0,
+                compounded_mana_spent=3.0,
+            ),
+        ),
+        (
+            # Land and Sol Ring in play, 4 drop and second land
+            GameState(
+                ["4 CMC", "1 CMC"],
+                CardBag({"1 CMC": 2, "2 CMC": 2, "Land": 1}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"1 CMC": 2, "2 CMC": 2}),
+                lands_in_play=2,
+                rocks_in_play=2,
+                mana_available=0,
+                cumulative_mana_in_play=4.0,
+                compounded_mana_spent=4.0,
+            ),
+        ),
+        (
+            # Land and Sol Ring in play, second land and 1, 2, 3 drops
+            GameState(
+                ["3 CMC", "1 CMC"],
+                CardBag({"1 CMC": 2, "2 CMC": 2, "3 CMC": 1, "Land": 1}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"1 CMC": 2, "3 CMC": 2}),
+                lands_in_play=2,
+                rocks_in_play=2,
+                mana_available=0,
+                cumulative_mana_in_play=4.0,
+                compounded_mana_spent=4.0,
+            ),
+        ),
+        (
+            # no land in play, Sol Ring in hand, draw land (mull to 4)
+            # this illustrates the weird behavior of Turn 1 -
+            # in the case of Turn 2, the 2-drop will be cast, even though
+            # it wouldn't in the identical Turn 1 case
+            GameState(
+                ["Land", "1 CMC"],
+                CardBag({"1 CMC": 2, "2 CMC": 2, "Sol Ring": 1}),
+                lands_in_play=0,
+                rocks_in_play=0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"1 CMC": 2, "2 CMC": 1}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                mana_available=0,
+                cumulative_mana_in_play=2.0,
+                compounded_mana_spent=2.0,
+            ),
+        )
+        # if one were feeling diligent, one could add these cases...
+        # no land and 1 drop
+        # no land and Sol ring....
+        # with 1 land and 1 rock in play...
+        #
+        # with 1 land and 3 rocks (Sol Ring + Signet) in play...
+    ],
+)
+def test_take_turn_two(starting_state, ending_state):
+    assert take_turn(starting_state, 2) == ending_state

@@ -220,8 +220,11 @@ class GameState:
         logger.info(f"play_from_hand {plays} from {self}")
         self.hand -= plays
         self.lands_in_play += plays["Land"]
+        self.mana_available += plays["Land"]
         self.rocks_in_play += plays["Rock"]
+        self.mana_available -= plays["Rock"]
         self.rocks_in_play += 2 * plays["Sol Ring"]
+        self.mana_available += plays["Sol Ring"]
         value_added = 0
         for cmc in range(1, 7):
             count = plays[f"{cmc} CMC"]
@@ -328,14 +331,10 @@ def take_turn(state: GameState, turn: int) -> GameState:
         if (state.mana_available >= 1) and state.hand["Sol Ring"] == 1:
             state.play_from_hand(CardBag({"Sol Ring": 1}))
             # Costs one mana, immediately adds two. Card is utterly broken
-            state.mana_available += 1
 
     if turn == 2:
         Castable_rock = min(state.hand["Rock"], state.mana_available // 2)
         state.play_from_hand(CardBag({"Rock": Castable_rock}))
-        # Rocks cost 2 each, then tap for 1 each
-        state.mana_available -= Castable_rock * 2
-        state.mana_available += Castable_rock
         # Rocks DO NOT count as mana spent or mana in play. Mana in play
         # represents creatures, planeswalkers, etc. Rocks are like lands
 
@@ -352,7 +351,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
             and state.hand[f"{cmc_of_followup_spell} CMC"] >= 1
         ):
             state.play_from_hand(CardBag({"Rock": 1}))
-            state.mana_available -= 1
             logger.info(
                 f"playing a {cmc_of_followup_spell} drop on turn 3 or 4 "
                 f"({turn})"
@@ -407,8 +405,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
 
     Castable_rock = min(state.hand["Rock"], state.mana_available // 2)
     state.play_from_hand(CardBag({"Rock": Castable_rock}))
-    state.mana_available -= Castable_rock * 2
-    state.mana_available += Castable_rock
 
     if (
         Castable_cmc_6 >= 1
@@ -427,6 +423,7 @@ def take_turn(state: GameState, turn: int) -> GameState:
         and we_cast_a_nonrock_spell_this_turn
     ):
         state.play_from_hand(CardBag({"Rock": 1}))
+        logger.info(f"snuck in a rock - state is now {state}")
 
     logger.debug(
         f"After spells, mana available {state.mana_available}. Cumulative "

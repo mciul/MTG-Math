@@ -179,8 +179,42 @@ def test_game_state_play_from_hand_updates_lands_and_rocks():
         CardBag({"6 CMC": 1}),
         lands_in_play=1,
         rocks_in_play=3,
+        mana_available=1,
         cumulative_mana_in_play=1.0,
         compounded_mana_spent=2.0,
+    )
+
+
+def test_game_state_play_from_hand_land_increases_mana_available():
+    initial_state = GameState(["Land"], CardBag({"Land": 2}), mana_available=0)
+    new_state = initial_state.play_from_hand(CardBag({"Land": 1}))
+    assert new_state == GameState(
+        ["Land"], CardBag({"Land": 1}), lands_in_play=1, mana_available=1
+    )
+
+
+def test_game_state_play_from_hand_rock_decreases_mana_available():
+    initial_state = GameState(
+        ["Land"], CardBag({"Rock": 2}), mana_available=2
+    )
+    new_state = initial_state.play_from_hand(CardBag({"Rock": 1}))
+    assert new_state == GameState(
+        ["Land"],
+        CardBag({"Rock": 1}),
+        rocks_in_play=1,
+        mana_available=1,
+    )
+
+def test_game_state_play_from_hand_sol_ring_increases_mana_available():
+    initial_state = GameState(
+        ["Land"], CardBag({"Sol Ring": 1}), mana_available=1
+    )
+    new_state = initial_state.play_from_hand(CardBag({"Sol Ring": 1}))
+    assert new_state == GameState(
+        ["Land"],
+        CardBag({}),
+        rocks_in_play=2,
+        mana_available=2,
     )
 
 
@@ -994,7 +1028,7 @@ def test_take_turn_two(starting_state, ending_state):
                 CardBag({}),
                 lands_in_play=3,
                 rocks_in_play=6,
-                mana_available=1,
+                mana_available=0,
                 cumulative_mana_in_play=7.0,
                 compounded_mana_spent=7.0,
             ),
@@ -1089,7 +1123,7 @@ def test_take_turn_three_or_four(starting_state, ending_state, turn):
                 CardBag({}),
                 lands_in_play=3,
                 rocks_in_play=6,
-                mana_available=1,
+                mana_available=0,
                 cumulative_mana_in_play=7.0,
                 compounded_mana_spent=7.0,
             ),

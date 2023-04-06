@@ -19,7 +19,6 @@ logging.basicConfig(level=logging.DEBUG)
 
 def game_with_hand(hand: CardBag) -> GameState:
     curve = Curve(11, 0, 14, 0, 12, 11, 8, 0, 42)
-    logger.info(f"game_with_hand({hand}) {curve.decklist=}")
     library = []
     for card, count in curve.decklist.items():
         library += [card] * (count - hand.get(card, 0))
@@ -1061,7 +1060,6 @@ def test_take_turn_two(starting_state, ending_state):
 @mark.parametrize("turn", [3, 4])
 def test_take_turn_three_or_four(starting_state, ending_state, turn):
     state = deepcopy(starting_state)  # GameStates are mutable, so be careful
-    logger.info(f"{state=}")
     assert take_turn(state, turn) == ending_state
 
 
@@ -1175,5 +1173,4 @@ def test_take_turn_three_or_four(starting_state, ending_state, turn):
 @mark.parametrize("turn", [5, 6, 7])
 def test_take_turn_five_or_more(starting_state, ending_state, turn):
     state = deepcopy(starting_state)  # GameStates are mutable, so be careful
-    logger.info(f"{state=}")
     assert take_turn(state, turn) == ending_state

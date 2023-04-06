@@ -217,7 +217,6 @@ class GameState:
 
         TODO: also update cards in play, mana spent, etc
         """
-        logger.info(f"play_from_hand {plays} from {self}")
         self.hand -= plays
         self.lands_in_play += plays["Land"]
         self.mana_available += plays["Land"]
@@ -351,10 +350,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
             and state.hand[f"{cmc_of_followup_spell} CMC"] >= 1
         ):
             state.play_from_hand(CardBag({"Rock": 1}))
-            logger.info(
-                f"playing a {cmc_of_followup_spell} drop on turn 3 or 4 "
-                f"({turn})"
-            )
             state.play_from_hand(CardBag({f"{cmc_of_followup_spell} CMC": 1}))
             we_cast_a_nonrock_spell_this_turn = True
 
@@ -377,10 +372,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
                 and state.hand[f"{second_cmc} CMC"] >= 1
             ) or (second_cmc == 2 and state.hand["2 CMC"] >= 2):
                 state.play_from_hand(CardBag({"2 CMC": 1}))
-                logger.info(
-                    f"Double spelling with a 2 drop and a "
-                    f"{second_cmc} drop on turn {turn}"
-                )
                 state.play_from_hand(CardBag({f"{second_cmc} CMC": 1}))
                 we_cast_a_nonrock_spell_this_turn = True
 
@@ -423,7 +414,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
         and we_cast_a_nonrock_spell_this_turn
     ):
         state.play_from_hand(CardBag({"Rock": 1}))
-        logger.info(f"snuck in a rock - state is now {state}")
 
     logger.debug(
         f"After spells, mana available {state.mana_available}. Cumulative "

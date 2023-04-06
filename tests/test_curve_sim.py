@@ -1201,6 +1201,21 @@ def test_take_turn_three_or_four(starting_state, ending_state, turn):
                 compounded_mana_spent=11.2,
             ),
         ),
+        (
+            # why not cast all the rocks you can? Honestly I don't know but...
+            GameState(
+                ["Rock", "Land"],
+                CardBag({"Rock": 6}),
+                lands_in_play=5,
+            ),
+            GameState(
+                ["Land"],
+                CardBag({"Rock": 5}),
+                lands_in_play=5,
+                rocks_in_play=2,
+                mana_available=3,
+            ),
+        ),
     ],
 )
 @mark.parametrize("turn", [5, 6, 7])

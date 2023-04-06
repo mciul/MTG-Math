@@ -210,14 +210,33 @@ class GameState:
         self.hand = self.hand.add(drawn, 1)
         return drawn
 
-    def play_from_hand(self, plays: CardBag) -> None:
+    def play_from_hand(self, plays: CardBag) -> "GameState":
         """Update game state as if the card were played
 
         Side effects: mutates game state by replacing hand
 
         TODO: also update cards in play, mana spent, etc
         """
+        logger.info(f"play_from_hand {plays} from {self}")
         self.hand -= plays
+        self.lands_in_play += plays["Land"]
+        self.rocks_in_play += plays["Rock"]
+        self.rocks_in_play += 2 * plays["Sol Ring"]
+        value_added = 0
+        for cmc in range(1, 7):
+            count = plays[f"{cmc} CMC"]
+            self.mana_available -= count * cmc
+            if cmc == 6:
+                value_added += 6.2 * count
+            else:
+                value_added += cmc * count
+        self.cumulative_mana_in_play += value_added
+        self.compounded_mana_spent += value_added
+        # TODO: raise exception for negative mana available?
+        # might need some thinking about when to add to mana available
+        # - does that happen when lands and rocks are played?
+
+        return self
 
     def add_to_hand(self, selection: CardBag):
         self.hand += selection
@@ -282,7 +301,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
     land_played = False
     if state.hand["Land"] > 0:
         state.play_from_hand(CardBag({"Land": 1}))
-        state.lands_in_play += 1
         land_played = True
 
     state.mana_available = state.lands_in_play + state.rocks_in_play
@@ -300,11 +318,9 @@ def take_turn(state: GameState, turn: int) -> GameState:
         if (state.mana_available >= 1) and state.hand["Sol Ring"] == 1:
             state.play_from_hand(CardBag({"Sol Ring": 1}))
             # Sol Ring counts as 2 mana rocks
-            state.rocks_in_play += 2
             # Also cast Signet if possible
             if state.hand["Rock"] >= 1:
                 state.play_from_hand(CardBag({"Rock": 1}))
-                state.rocks_in_play += 1
             state.mana_available = 0
             # We can't do anything else after a turn one Sol Ring
 
@@ -313,7 +329,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
             state.play_from_hand(CardBag({"Sol Ring": 1}))
             # Costs one mana, immediately adds two. Card is utterly broken
             state.mana_available += 1
-            state.rocks_in_play += 2
 
     if turn == 2:
         Castable_rock = min(state.hand["Rock"], state.mana_available // 2)
@@ -321,7 +336,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
         # Rocks cost 2 each, then tap for 1 each
         state.mana_available -= Castable_rock * 2
         state.mana_available += Castable_rock
-        state.rocks_in_play += Castable_rock
         # Rocks DO NOT count as mana spent or mana in play. Mana in play
         # represents creatures, planeswalkers, etc. Rocks are like lands
 
@@ -339,11 +353,11 @@ def take_turn(state: GameState, turn: int) -> GameState:
         ):
             state.play_from_hand(CardBag({"Rock": 1}))
             state.mana_available -= 1
-            state.rocks_in_play += 1
+            logger.info(
+                f"playing a {cmc_of_followup_spell} drop on turn 3 or 4 "
+                f"({turn})"
+            )
             state.play_from_hand(CardBag({f"{cmc_of_followup_spell} CMC": 1}))
-            state.mana_available -= cmc_of_followup_spell
-            state.compounded_mana_spent += cmc_of_followup_spell
-            state.cumulative_mana_in_play += cmc_of_followup_spell
             we_cast_a_nonrock_spell_this_turn = True
 
     logger.debug(
@@ -358,62 +372,43 @@ def take_turn(state: GameState, turn: int) -> GameState:
             # for 4s
             # Since mana_available - 2 could be 2, we also gotta check
             # if the cards are distinct
+            second_cmc = state.mana_available - 2
             if (
-                state.mana_available - 2 != 2
+                second_cmc != 2
                 and state.hand["2 CMC"] >= 1
-                and state.hand[f"{state.mana_available - 2} CMC"] >= 1
-            ) or (state.mana_available - 2 == 2 and state.hand["2 CMC"] >= 2):
+                and state.hand[f"{second_cmc} CMC"] >= 1
+            ) or (second_cmc == 2 and state.hand["2 CMC"] >= 2):
                 state.play_from_hand(CardBag({"2 CMC": 1}))
-                state.play_from_hand(
-                    CardBag({f"{state.mana_available - 2} CMC": 1})
+                logger.info(
+                    f"Double spelling with a 2 drop and a "
+                    f"{second_cmc} drop on turn {turn}"
                 )
-                state.compounded_mana_spent += state.mana_available
-                state.cumulative_mana_in_play += state.mana_available
-                state.mana_available = 0
+                state.play_from_hand(CardBag({f"{second_cmc} CMC": 1}))
                 we_cast_a_nonrock_spell_this_turn = True
 
     Castable_cmc_6 = min(state.hand["6 CMC"], state.mana_available // 6)
     state.play_from_hand(CardBag({"6 CMC": Castable_cmc_6}))
-    state.mana_available -= Castable_cmc_6 * 6
     # Six drops are very powerful and count as 6.2 mana each
-    state.compounded_mana_spent += Castable_cmc_6 * 6.2
-    state.cumulative_mana_in_play += Castable_cmc_6 * 6.2
 
     Castable_cmc_5 = min(state.hand["5 CMC"], state.mana_available // 5)
     state.play_from_hand(CardBag({"5 CMC": Castable_cmc_5}))
-    state.mana_available -= Castable_cmc_5 * 5
-    state.compounded_mana_spent += Castable_cmc_5 * 5
-    state.cumulative_mana_in_play += Castable_cmc_5 * 5
 
     Castable_cmc_4 = min(state.hand["4 CMC"], state.mana_available // 4)
     state.play_from_hand(CardBag({"4 CMC": Castable_cmc_4}))
-    state.mana_available -= Castable_cmc_4 * 4
-    state.compounded_mana_spent += Castable_cmc_4 * 4
-    state.cumulative_mana_in_play += Castable_cmc_4 * 4
 
     Castable_cmc_3 = min(state.hand["3 CMC"], state.mana_available // 3)
     state.play_from_hand(CardBag({"3 CMC": Castable_cmc_3}))
-    state.mana_available -= Castable_cmc_3 * 3
-    state.compounded_mana_spent += Castable_cmc_3 * 3
-    state.cumulative_mana_in_play += Castable_cmc_3 * 3
 
     Castable_cmc_2 = min(state.hand["2 CMC"], state.mana_available // 2)
     state.play_from_hand(CardBag({"2 CMC": Castable_cmc_2}))
-    state.mana_available -= Castable_cmc_2 * 2
-    state.compounded_mana_spent += Castable_cmc_2 * 2
-    state.cumulative_mana_in_play += Castable_cmc_2 * 2
 
     Castable_cmc_1 = min(state.hand["1 CMC"], state.mana_available // 1)
     state.play_from_hand(CardBag({"1 CMC": Castable_cmc_1}))
-    state.mana_available -= Castable_cmc_1 * 1
-    state.compounded_mana_spent += Castable_cmc_1 * 1
-    state.cumulative_mana_in_play += Castable_cmc_1 * 1
 
     Castable_rock = min(state.hand["Rock"], state.mana_available // 2)
     state.play_from_hand(CardBag({"Rock": Castable_rock}))
     state.mana_available -= Castable_rock * 2
     state.mana_available += Castable_rock
-    state.rocks_in_play += Castable_rock
 
     if (
         Castable_cmc_6 >= 1
@@ -432,7 +427,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
         and we_cast_a_nonrock_spell_this_turn
     ):
         state.play_from_hand(CardBag({"Rock": 1}))
-        state.rocks_in_play += 1
 
     logger.debug(
         f"After spells, mana available {state.mana_available}. Cumulative "

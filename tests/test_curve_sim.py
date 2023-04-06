@@ -165,6 +165,60 @@ def test_game_state_play_from_hand_removes_card_from_hand():
     assert state.hand == CardBag({"Land": 3, "1 CMC": 2})
 
 
+def test_game_state_play_from_hand_updates_lands_and_rocks():
+    hand = CardBag({"Land": 1, "Rock": 1, "Sol Ring": 1})
+    initial_state = GameState(
+        ["Land"],
+        CardBag({"Land": 1, "6 CMC": 1, "Rock": 1, "Sol Ring": 1}),
+        cumulative_mana_in_play=1.0,
+        compounded_mana_spent=2.0,
+    )
+    new_state = initial_state.play_from_hand(hand)
+    assert new_state == GameState(
+        ["Land"],
+        CardBag({"6 CMC": 1}),
+        lands_in_play=1,
+        rocks_in_play=3,
+        cumulative_mana_in_play=1.0,
+        compounded_mana_spent=2.0,
+    )
+
+
+@mark.parametrize(
+    "spell,count,mana,value,compound_value",
+    [
+        ("1 CMC", 1, 1, 2.0, 3.0),
+        ("1 CMC", 3, 3, 4.0, 5.0),
+        ("2 CMC", 1, 2, 3.0, 4.0),
+        ("2 CMC", 2, 4, 5.0, 6.0),
+        ("3 CMC", 1, 3, 4.0, 5.0),
+        ("4 CMC", 1, 4, 5.0, 6.0),
+        ("5 CMC", 1, 5, 6.0, 7.0),
+        ("6 CMC", 1, 6, 7.2, 8.2),
+        ("6 CMC", 2, 12, 13.4, 14.4),
+    ],
+)
+def test_game_state_play_from_hand_updates_spells(
+    spell, count, mana, value, compound_value
+):
+    hand = CardBag({spell: count})
+    initial_state = GameState(
+        ["Land"],
+        deepcopy(hand),
+        mana_available=mana,
+        cumulative_mana_in_play=1.0,
+        compounded_mana_spent=2.0,
+    )
+    new_state = initial_state.play_from_hand(hand)
+    assert new_state == GameState(
+        ["Land"],
+        CardBag({}),
+        mana_available=0,
+        cumulative_mana_in_play=value,
+        compounded_mana_spent=compound_value,
+    )
+
+
 @mark.parametrize(
     "count,free", [(7, True), (7, False), (6, False), (5, False)]
 )

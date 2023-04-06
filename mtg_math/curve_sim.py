@@ -199,6 +199,11 @@ class GameState:
         """
         self.hand = self.hand - selection
 
+    def untap(self) -> "GameState":
+        self.mana_available = self.lands_in_play + self.rocks_in_play
+        self.compounded_mana_spent += self.cumulative_mana_in_play
+        return self
+
     def draw(self) -> str:
         """Update state by drawing 1 card from library to hand
 
@@ -294,7 +299,7 @@ def take_turn(state: GameState, turn: int) -> GameState:
     # ..., 6-drop we cast
     # Note that mana rocks or card draw spells don't count towards this
 
-    state.compounded_mana_spent += state.cumulative_mana_in_play
+    state.untap()
 
     # In Commander, you always draw a card, even when playing first
     card_drawn = state.draw()
@@ -305,7 +310,6 @@ def take_turn(state: GameState, turn: int) -> GameState:
         state.play_from_hand(CardBag({"Land": 1}))
         land_played = True
 
-    state.mana_available = state.lands_in_play + state.rocks_in_play
     mana_available_at_start_turn = state.mana_available
     we_cast_a_nonrock_spell_this_turn = False
 

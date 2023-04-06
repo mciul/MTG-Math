@@ -240,8 +240,6 @@ class GameState:
         self.cumulative_mana_in_play += value_added
         self.compounded_mana_spent += value_added
         # TODO: raise exception for negative mana available?
-        # might need some thinking about when to add to mana available
-        # - does that happen when lands and rocks are played?
 
         return self
 
@@ -379,37 +377,15 @@ def take_turn(state: GameState, turn: int) -> GameState:
                 state.play_from_hand(CardBag({f"{second_cmc} CMC": 1}))
                 we_cast_a_nonrock_spell_this_turn = True
 
-    Castable_cmc_6 = min(state.hand["6 CMC"], state.mana_available // 6)
-    state.play_from_hand(CardBag({"6 CMC": Castable_cmc_6}))
-    # Six drops are very powerful and count as 6.2 mana each
-
-    Castable_cmc_5 = min(state.hand["5 CMC"], state.mana_available // 5)
-    state.play_from_hand(CardBag({"5 CMC": Castable_cmc_5}))
-
-    Castable_cmc_4 = min(state.hand["4 CMC"], state.mana_available // 4)
-    state.play_from_hand(CardBag({"4 CMC": Castable_cmc_4}))
-
-    Castable_cmc_3 = min(state.hand["3 CMC"], state.mana_available // 3)
-    state.play_from_hand(CardBag({"3 CMC": Castable_cmc_3}))
-
-    Castable_cmc_2 = min(state.hand["2 CMC"], state.mana_available // 2)
-    state.play_from_hand(CardBag({"2 CMC": Castable_cmc_2}))
-
-    Castable_cmc_1 = min(state.hand["1 CMC"], state.mana_available // 1)
-    state.play_from_hand(CardBag({"1 CMC": Castable_cmc_1}))
+    for cmc in range(6, 0, -1):
+        spell = f"{cmc} CMC"
+        castable_count = min(state.hand[spell], state.mana_available // cmc)
+        if castable_count > 0:
+            state.play_from_hand(CardBag({spell: castable_count}))
+            we_cast_a_nonrock_spell_this_turn = True
 
     Castable_rock = min(state.hand["Rock"], state.mana_available // 2)
     state.play_from_hand(CardBag({"Rock": Castable_rock}))
-
-    if (
-        Castable_cmc_6 >= 1
-        or Castable_cmc_5 >= 1
-        or Castable_cmc_4 >= 1
-        or Castable_cmc_3 >= 1
-        or Castable_cmc_2 >= 1
-        or Castable_cmc_1 >= 1
-    ):
-        we_cast_a_nonrock_spell_this_turn = True
 
     # If we retroactively notice we could've snuck in a mana rock, do so
     if (

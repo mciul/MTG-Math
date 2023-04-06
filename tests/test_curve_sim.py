@@ -1,15 +1,17 @@
+import logging
 import random
-from pytest import mark, raises
+from copy import deepcopy
+
+from pytest import mark, raises, approx
+
 from mtg_math.curve_sim import (
+    CardBag,
     Curve,
     GameState,
-    CardBag,
-    do_we_keep,
     cards_to_bottom,
+    do_we_keep,
     take_turn,
 )
-
-import logging
 
 logger = logging.getLogger()
 logging.basicConfig(level=logging.DEBUG)
@@ -828,6 +830,26 @@ def test_take_turn_one(starting_state, ending_state):
             ),
         ),
         (
+            # Land and Sol Ring in play, second land, one 2 drop and 3 drops
+            GameState(
+                ["3 CMC", "1 CMC"],
+                CardBag({"2 CMC": 1, "3 CMC": 1, "Land": 2}),
+                lands_in_play=1,
+                rocks_in_play=2,
+                cumulative_mana_in_play=0.0,
+                compounded_mana_spent=0.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"2 CMC": 1, "3 CMC": 1, "Land": 1}),
+                lands_in_play=2,
+                rocks_in_play=2,
+                mana_available=1,
+                cumulative_mana_in_play=3.0,
+                compounded_mana_spent=3.0,
+            ),
+        ),
+        (
             # no land in play, Sol Ring in hand, draw land (mull to 4)
             # this illustrates the weird behavior of Turn 1 -
             # in the case of Turn 2, the 2-drop will be cast, even though
@@ -858,3 +880,212 @@ def test_take_turn_one(starting_state, ending_state):
 )
 def test_take_turn_two(starting_state, ending_state):
     assert take_turn(starting_state, 2) == ending_state
+
+
+@mark.parametrize(
+    "starting_state,ending_state",
+    [
+        (
+            # land and 1-drop in play, rock and 2-drop available
+            # we'll cast the 2-drop on turn 3 - on turn 2 it would be the rock
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"2 CMC": 3, "Land": 3}),
+                lands_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=1.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"2 CMC": 2, "Rock": 1, "Land": 2}),
+                lands_in_play=2,
+                rocks_in_play=0,
+                mana_available=0,
+                cumulative_mana_in_play=3.0,
+                compounded_mana_spent=4.0,
+            ),
+        ),
+        (
+            # 1-drop, 2 lands and a rock in play - cast a rock and a 3-drop
+            # instead of a 4-drop
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"3 CMC": 1, "4 CMC": 1, "Land": 1}),
+                lands_in_play=2,
+                rocks_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=2.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"4 CMC": 1}),
+                lands_in_play=3,
+                rocks_in_play=2,
+                mana_available=0,
+                cumulative_mana_in_play=4.0,
+                compounded_mana_spent=6.0,
+            ),
+        ),
+        (
+            # Sol Ring and 3 rocks in play with 4-drop and 3-drop
+            # cast a rock before the spells
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"3 CMC": 1, "4 CMC": 1, "Land": 1}),
+                lands_in_play=2,
+                rocks_in_play=5,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({}),
+                lands_in_play=3,
+                rocks_in_play=6,
+                mana_available=1,
+                cumulative_mana_in_play=7.0,
+                compounded_mana_spent=7.0,
+            ),
+        ),
+        (
+            # Sol Ring and 3 rocks in play with 1-drop, 4-drop and rock
+            # cast all if there's nothing else to do with the mana
+            # this is a real example from og runtime logs
+            # (although it was actually turn 5)
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"1 CMC": 1, "4 CMC": 1}),
+                lands_in_play=2,
+                rocks_in_play=5,
+                cumulative_mana_in_play=15.2,
+                compounded_mana_spent=25.4,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({}),
+                lands_in_play=2,
+                rocks_in_play=6,
+                mana_available=1,
+                cumulative_mana_in_play=20.2,
+                compounded_mana_spent=approx(45.6),
+            ),
+        ),
+    ],
+)
+@mark.parametrize("turn", [3, 4])
+def test_take_turn_three_or_four(starting_state, ending_state, turn):
+    state = deepcopy(starting_state)  # GameStates are mutable, so be careful
+    logger.info(f"{state=}")
+    assert take_turn(state, turn) == ending_state
+
+
+@mark.parametrize(
+    "starting_state,ending_state",
+    [
+        (
+            # land and 1-drop in play, rock and 2-drop available
+            # we'll cast the 2-drop on turn 3 - on turn 2 it would be the rock
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"2 CMC": 3, "Land": 3}),
+                lands_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=1.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"2 CMC": 2, "Rock": 1, "Land": 2}),
+                lands_in_play=2,
+                rocks_in_play=0,
+                mana_available=0,
+                cumulative_mana_in_play=3.0,
+                compounded_mana_spent=4.0,
+            ),
+        ),
+        (
+            # 1-drop, 2 lands and a rock in play - cast the 4-drop
+            # instead of the rock and the 3-drop, as we would on turn 3 or 4
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"3 CMC": 1, "4 CMC": 1, "Land": 1}),
+                lands_in_play=2,
+                rocks_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=2.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"3 CMC": 1, "Rock": 1}),
+                lands_in_play=3,
+                rocks_in_play=1,
+                mana_available=0,
+                cumulative_mana_in_play=5.0,
+                compounded_mana_spent=7.0,
+            ),
+        ),
+        (
+            # Sol Ring and 3 rocks in play with 4-drop and 3-drop
+            # cast a rock before the spells
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"3 CMC": 1, "4 CMC": 1, "Land": 1}),
+                lands_in_play=2,
+                rocks_in_play=5,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({}),
+                lands_in_play=3,
+                rocks_in_play=6,
+                mana_available=1,
+                cumulative_mana_in_play=7.0,
+                compounded_mana_spent=7.0,
+            ),
+        ),
+        (
+            # Sol Ring and 3 rocks in play with 1-drop, 4-drop and rock
+            # cast all if there's nothing else to do with the mana
+            # this is a real example from og runtime logs
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"1 CMC": 1, "4 CMC": 1}),
+                lands_in_play=2,
+                rocks_in_play=5,
+                cumulative_mana_in_play=15.2,
+                compounded_mana_spent=25.4,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({}),
+                lands_in_play=2,
+                rocks_in_play=6,
+                mana_available=1,
+                cumulative_mana_in_play=20.2,
+                compounded_mana_spent=approx(45.6),
+            ),
+        ),
+        (
+            # cast a 5-drop and a 6-drop
+            # showing the extra value for 6-drops
+            # also for coverage of the dumb duplicated code
+            GameState(
+                ["6 CMC", "Land"],
+                CardBag({"5 CMC": 1, "Land": 1}),
+                lands_in_play=3,
+                rocks_in_play=7,
+            ),
+            GameState(
+                ["Land"],
+                CardBag({}),
+                lands_in_play=4,
+                rocks_in_play=7,
+                mana_available=0,
+                cumulative_mana_in_play=11.2,
+                compounded_mana_spent=11.2,
+            ),
+        ),
+    ],
+)
+@mark.parametrize("turn", [5, 6, 7])
+def test_take_turn_five_or_more(starting_state, ending_state, turn):
+    state = deepcopy(starting_state)  # GameStates are mutable, so be careful
+    logger.info(f"{state=}")
+    assert take_turn(state, turn) == ending_state

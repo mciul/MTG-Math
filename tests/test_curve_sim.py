@@ -1050,6 +1050,27 @@ def test_take_turn_two(starting_state, ending_state):
             ),
         ),
         (
+            # 1-drop, 3 lands & a rock in play - no lands & 2 rocks in hand
+            # cast one rock and one 3-drop
+            GameState(
+                ["Rock", "1 CMC"],
+                CardBag({"3 CMC": 1, "4 CMC": 1, "Rock": 1}),
+                lands_in_play=3,
+                rocks_in_play=1,
+                cumulative_mana_in_play=1.0,
+                compounded_mana_spent=2.0,
+            ),
+            GameState(
+                ["1 CMC"],
+                CardBag({"4 CMC": 1, "Rock": 1}),
+                lands_in_play=3,
+                rocks_in_play=2,
+                mana_available=0,
+                cumulative_mana_in_play=4.0,
+                compounded_mana_spent=6.0,
+            ),
+        ),
+        (
             # Sol Ring and 3 rocks in play with 4-drop and 3-drop
             # cast a rock before the spells
             GameState(
@@ -1124,8 +1145,56 @@ def test_take_turn_three_or_four(starting_state, ending_state, turn):
     "starting_state,ending_state",
     [
         (
+            # 3 lands in play, land and 1, 2, 3 drops in hand
+            # cast two 2-drops instead of the 1 and 3 drop
+            GameState(
+                ["Land", "Land"],
+                CardBag({"1 CMC": 2, "2 CMC": 2, "3 CMC": 1}),
+                lands_in_play=3,
+            ),
+            GameState(
+                ["Land"],
+                CardBag({"1 CMC": 2, "3 CMC": 1}),
+                lands_in_play=4,
+                cumulative_mana_in_play=4.0,
+                compounded_mana_spent=4.0,
+            ),
+        ),
+        (
+            # 5 lands in play, 1, 2, 3, 4, drops in hand
+            # cast the 2 and 3 drop instead of the 1 and 4 drop
+            GameState(
+                ["Land", "Land"],
+                CardBag({"1 CMC": 1, "2 CMC": 1, "3 CMC": 1, "4 CMC": 1}),
+                lands_in_play=4,
+            ),
+            GameState(
+                ["Land"],
+                CardBag({"1 CMC": 1, "4 CMC": 1}),
+                lands_in_play=5,
+                cumulative_mana_in_play=5.0,
+                compounded_mana_spent=5.0,
+            ),
+        ),
+        (
+            # 5 lands in play, 1, 3 and 4 drops
+            # cast the 4 drop and the 1 drop
+            GameState(
+                ["Land", "Land"],
+                CardBag({"1 CMC": 1, "3 CMC": 1, "4 CMC": 1}),
+                lands_in_play=4,
+            ),
+            GameState(
+                ["Land"],
+                CardBag({"3 CMC": 1}),
+                lands_in_play=5,
+                cumulative_mana_in_play=5.0,
+                compounded_mana_spent=5.0,
+            ),
+        ),
+        (
             # land and 1-drop in play, rock and 2-drop available
-            # we'll cast the 2-drop on turn 3 - on turn 2 it would be the rock
+            # we'll cast the 2-drop - on turn 2 it would be the rock
             GameState(
                 ["Rock", "1 CMC"],
                 CardBag({"2 CMC": 3, "Land": 3}),

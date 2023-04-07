@@ -18,16 +18,27 @@ def nearby_values(start_value: int) -> Generator[int, None, None]:
 
 @dataclass
 class Card:
+    """Represents a card and describes its behavior
+
+    name is how we usually refer to cards - we often use name to look one up
+    cmc will be deducted from mana available when cast
+    mana_produced is mana that becomes available when the card is played
+      - mana that becomes available on untap is handled elsewhere
+    value represents mana in play, but only for creatures, etc.
+     - Rocks are treated as though they had no intrinsic value
+    effect is a strategy that gets called when the card is played
+     - e.g. where lands_in_play gets updated, which provides mana on untap
+     - updating value and adding available mana are handled separately
+       and should not be included in the effectjjjj
+
+    This framework would allow us to easily add new card types, such as draw
+    """
+
     name: str
     cmc: int
     mana_produced: int
     value: float
     effect: Callable[["GameState", int], "GameState"]
-
-
-# Rocks DO NOT count as mana spent or mana in play. Mana in play
-# represents creatures, planeswalkers, etc. Rocks are like lands
-# We represent mana in play with the "value" attribute
 
 
 def no_effect(state: "GameState", count: int) -> "GameState":
@@ -65,9 +76,6 @@ CARDS_BY_CMC: Dict[int, str] = defaultdict(
 
 def spells_in_descending_order(max_cmc: int = 6) -> List[str]:
     return [CARDS_BY_CMC[cmc] for cmc in range(max_cmc, 0, -1)]
-
-
-# now it wouldn't be too hard to model draw effects!
 
 
 class CardBag(UserDict):
@@ -110,9 +118,7 @@ class CardBag(UserDict):
 
     def includes_nonrock(self) -> bool:
         return any(
-            CARDS[name].mana_produced == 0
-            for name, count in self.items()
-            if count > 0
+            CARDS[name].mana_produced == 0 for name, count in self.items()
         )
 
 
@@ -378,14 +384,42 @@ def castable_count(state: GameState, play: CardBag, card_name: str) -> int:
     if card_name not in hand.keys():
         return 0
     card = CARDS[card_name]
+    available = mana_left(state, play)
+    if card.mana_produced == 1 and play.includes_nonrock():
+        # maybe we can cast an extra rock before casting the nonrock spell
+        available += 1
     # note - no protection against divide-by-zero (should never happen)
-    return min(hand[card_name], mana_left(state, play) // card.cmc)
+    return min(hand[card_name], available // card.cmc)
+
+
+def play_two_drop_as_first_spell(
+    state: GameState, play: CardBag, optimal_spells: List[str]
+) -> CardBag:
+    """play a two-drop if if we can't use all our mana on one big spell
+
+    We prefer to double-spell with a two-drop rather than a one-drop,
+    which is handled elsewhere
+    """
+    # double-spelling with a 1-drop
+    if len(optimal_spells) < 3:
+        # we don't have a spell with CMC=available mana - 2
+        return play
+    if castable_count(state, play, optimal_spells[0]) > 0:
+        # just cast the big one
+        return play
+    if castable_count(state, play, "2 CMC") < 1:
+        # we don't have a 2 drop
+        return play
+    hypothetical = play.add("2 CMC", 1)
+    if castable_count(state, hypothetical, optimal_spells[2]) < 1:
+        # we can't cast the second spell
+        return play
+    # ok, let's do it
+    return hypothetical
 
 
 def choose_play(state: GameState, turn: int) -> CardBag:
     play = CardBag({"Land": min(1, state.hand["Land"])})
-
-    mana_available_at_start_turn = state.mana_available
 
     play = play.add("Sol Ring", castable_count(state, play, "Sol Ring"))
     if turn < 3:
@@ -393,43 +427,26 @@ def choose_play(state: GameState, turn: int) -> CardBag:
         play = play.add("Rock", castable_count(state, play, "Rock"))
 
     if turn == 1 and play["Sol Ring"] > 0:
-        # According to Frank Karsten's article, we can only play rocks
-        # on Turn 1 if we play a Sol Ring
+        # According to Frank Karsten's article, we can't cast nonrock spells
+        # on Turn 1 if we played a Sol Ring
         return play
 
     optimal_spells = spells_in_descending_order(mana_left(state, play))
 
-    # On turn 3 or 4, cast a mana rock and a (mana available - 1) drop if
-    # possible
+    # On turn 3 or 4, cast one mana rock if we can max out the remaining
+    # mana on a spell
     if turn in [3, 4] and len(optimal_spells) >= 2:
         spell = optimal_spells[1]  # optimal CMC - 1
         if castable_count(state, play, spell) >= 1:
-            play = play.add("Rock", castable_count(state, play, "Rock"))
+            castable_rock = min(1, castable_count(state, play, "Rock"))
+            play = play.add("Rock", castable_rock)
 
-    if mana_left(state, play) <= 6 and len(optimal_spells) >= 3:
-        if castable_count(state, play, optimal_spells[0]) == 0:
-            # if we can't use all our mana on one big spell,
-            # double-spelling with a 2-drop is better than
-            # double-spelling with a 1-drop
-            second_spell = optimal_spells[2]  # optimal CMC - 2
-            hypothetical = play.add("2 CMC", 1)
-            if castable_count(state, hypothetical, second_spell) >= 1:
-                play = hypothetical
+    if mana_left(state, play) <= 6:
+        play = play_two_drop_as_first_spell(state, play, optimal_spells)
 
-    for spell in optimal_spells:
+    for spell in optimal_spells + ["Rock"]:
         if castable_count(state, play, spell) > 0:
             play = play.add(spell, castable_count(state, play, spell))
-
-    play = play.add("Rock", castable_count(state, play, "Rock"))
-
-    # If we retroactively notice we could've snuck in a mana rock, do so
-    remaining_cards = state.hand - play
-    if (
-        (mana_available_at_start_turn >= 2 and mana_left(state, play) == 1)
-        and remaining_cards["Rock"] >= 1
-        and play.includes_nonrock()
-    ):
-        play = play.add("Rock", 1)
     return play
 
 

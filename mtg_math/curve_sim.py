@@ -479,8 +479,7 @@ def choose_play(state: GameState, turn: int) -> CardBag:
         play = play_two_drop_as_first_spell(state, play, optimal_spells)
 
     for spell in optimal_spells + ["Rock"]:
-        if castable_count(state, play, spell) > 0:
-            play = play.add(spell, castable_count(state, play, spell))
+        play = play.add(spell, castable_count(state, play, spell))
 
     return play
 

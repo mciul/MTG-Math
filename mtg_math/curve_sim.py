@@ -405,15 +405,9 @@ def choose_play(state: GameState, turn: int) -> CardBag:
         if castable_count(state, play, spell) >= 1:
             play = play.add("Rock", castable_count(state, play, "Rock"))
 
-    logger.debug(
-        f"After rocks, mana available {state.mana_available}. Cumulative "
-        f"mana {state.compounded_mana_spent}. Hand: {state.hand}"
-    )
-
     if 3 <= mana_left(state, play) <= 6:
-        remaining_cards = state.hand - play
         spell = CARDS_BY_CMC[mana_left(state, play)]
-        if remaining_cards[spell] == 0:
+        if castable_count(state, play, spell) == 0:
             # We have, for example, 5 mana but don't have a 5-drop in hand
             # But let's check if we can cast a 2 and a 3 before checking
             # for 4s
@@ -421,12 +415,9 @@ def choose_play(state: GameState, turn: int) -> CardBag:
             # if the cards are distinct
             second_cmc = mana_left(state, play) - 2
             second_spell = CARDS_BY_CMC[second_cmc]
-            if (
-                second_cmc != 2
-                and remaining_cards["2 CMC"] >= 1
-                and remaining_cards[second_spell] >= 1
-            ) or (second_cmc == 2 and remaining_cards["2 CMC"] >= 2):
-                play = play + CardBag({"2 CMC": 1, second_spell: 1})
+            hypothetical = play.add("2 CMC", 1)
+            if castable_count(state, hypothetical, second_spell) >= 1:
+                play = hypothetical.add(second_spell, 1)
 
     for spell in spells_in_descending_order():
         if castable_count(state, play, spell) > 0:

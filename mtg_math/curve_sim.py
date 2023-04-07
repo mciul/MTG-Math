@@ -63,8 +63,8 @@ CARDS_BY_CMC: Dict[int, str] = defaultdict(
 )
 
 
-def spells_in_descending_order() -> List[str]:
-    return [CARDS_BY_CMC[cmc] for cmc in range(6, 0, -1)]
+def spells_in_descending_order(max_cmc: int = 6) -> List[str]:
+    return [CARDS_BY_CMC[cmc] for cmc in range(max_cmc, 0, -1)]
 
 
 # now it wouldn't be too hard to model draw effects!
@@ -397,29 +397,26 @@ def choose_play(state: GameState, turn: int) -> CardBag:
         # on Turn 1 if we play a Sol Ring
         return play
 
+    optimal_spells = spells_in_descending_order(mana_left(state, play))
+
     # On turn 3 or 4, cast a mana rock and a (mana available - 1) drop if
     # possible
-    if turn in [3, 4]:
-        cmc_of_followup_spell = mana_left(state, play) - 1
-        spell = CARDS_BY_CMC[cmc_of_followup_spell]
+    if turn in [3, 4] and len(optimal_spells) >= 2:
+        spell = optimal_spells[1]  # optimal CMC - 1
         if castable_count(state, play, spell) >= 1:
             play = play.add("Rock", castable_count(state, play, "Rock"))
 
-    if 3 <= mana_left(state, play) <= 6:
-        spell = CARDS_BY_CMC[mana_left(state, play)]
-        if castable_count(state, play, spell) == 0:
-            # We have, for example, 5 mana but don't have a 5-drop in hand
-            # But let's check if we can cast a 2 and a 3 before checking
-            # for 4s
-            # Since mana_available - 2 could be 2, we also gotta check
-            # if the cards are distinct
-            second_cmc = mana_left(state, play) - 2
-            second_spell = CARDS_BY_CMC[second_cmc]
+    if mana_left(state, play) <= 6 and len(optimal_spells) >= 3:
+        if castable_count(state, play, optimal_spells[0]) == 0:
+            # if we can't use all our mana on one big spell,
+            # double-spelling with a 2-drop is better than
+            # double-spelling with a 1-drop
+            second_spell = optimal_spells[2]  # optimal CMC - 2
             hypothetical = play.add("2 CMC", 1)
             if castable_count(state, hypothetical, second_spell) >= 1:
-                play = hypothetical.add(second_spell, 1)
+                play = hypothetical
 
-    for spell in spells_in_descending_order():
+    for spell in optimal_spells:
         if castable_count(state, play, spell) > 0:
             play = play.add(spell, castable_count(state, play, spell))
 

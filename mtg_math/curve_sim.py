@@ -376,17 +376,15 @@ def choose_play(state: GameState, turn: int) -> CardBag:
     play = CardBag({"Land": min(1, state.hand["Land"])})
 
     mana_available_at_start_turn = state.mana_available
-    we_cast_a_nonrock_spell_this_turn = False
 
     play = play.add("Sol Ring", castable_count(state, play, "Sol Ring"))
-    if turn == 1 and mana_left(state, play) >= 2:
+    if turn < 3:
+        play = play.add("Rock", castable_count(state, play, "Rock"))
+
+    if turn == 1 and play["Sol Ring"] > 0:
         # According to Frank Karsten's article, we can only play rocks
         # on Turn 1 if we play a Sol Ring
-        return play.add("Rock", castable_count(state, play, "Rock"))
-
-    if turn == 2:
-        # Rocks get priority over spells early on
-        play = play.add("Rock", castable_count(state, play, "Rock"))
+        return play
 
     # On turn 3 or 4, cast a mana rock and a (mana available - 1) drop if
     # possible
@@ -403,7 +401,6 @@ def choose_play(state: GameState, turn: int) -> CardBag:
             and remaining_cards[followup_spell] >= 1
         ):
             play = play + CardBag({"Rock": 1, followup_spell: 1})
-            we_cast_a_nonrock_spell_this_turn = True
 
     logger.debug(
         f"After rocks, mana available {state.mana_available}. Cumulative "
@@ -426,13 +423,11 @@ def choose_play(state: GameState, turn: int) -> CardBag:
                 and remaining_cards[second_spell] >= 1
             ) or (second_cmc == 2 and remaining_cards["2 CMC"] >= 2):
                 play = play + CardBag({"2 CMC": 1, second_spell: 1})
-                we_cast_a_nonrock_spell_this_turn = True
 
     for cmc in range(6, 0, -1):
         spell = f"{cmc} CMC"
         if castable_count(state, play, spell) > 0:
             play = play.add(spell, castable_count(state, play, spell))
-            we_cast_a_nonrock_spell_this_turn = True
 
     play = play.add("Rock", castable_count(state, play, "Rock"))
 
@@ -441,7 +436,7 @@ def choose_play(state: GameState, turn: int) -> CardBag:
     if (
         (mana_available_at_start_turn >= 2 and mana_left(state, play) == 1)
         and remaining_cards["Rock"] >= 1
-        and we_cast_a_nonrock_spell_this_turn
+        and play.includes_nonrock()
     ):
         play = play.add("Rock", 1)
     return play
@@ -469,13 +464,7 @@ def take_turn(state: GameState, turn: int) -> GameState:
         f"Hand: {state.hand}"
     )
 
-    # Play a land if possible
-    state = state.play_from_hand(
-        choose_play(
-            state,
-            turn,
-        )
-    )
+    state = state.play_from_hand(choose_play(state, turn))
     logger.debug(
         f"After spells, mana available {state.mana_available}. Cumulative "
         f"mana {state.compounded_mana_spent}. Hand: {state.hand}"

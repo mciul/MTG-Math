@@ -651,6 +651,7 @@ def test_cards_to_bottom_when_keeping_four(cards, bottom):
                 CardBag({"6 CMC": 2, "Rock": 2, "Land": 2}),
                 lands_in_play=1,
                 rocks_in_play=3,
+                mana_available=1
             ),
         ),
         (
@@ -680,6 +681,7 @@ def test_cards_to_bottom_when_keeping_four(cards, bottom):
                 CardBag({"1 CMC": 2, "2 CMC": 4, "Land": 0}),
                 lands_in_play=1,
                 rocks_in_play=2,
+                mana_available=2,
                 cumulative_mana_in_play=0.0,
                 compounded_mana_spent=0.0,
             ),
@@ -697,6 +699,7 @@ def test_cards_to_bottom_when_keeping_four(cards, bottom):
                 CardBag({"1 CMC": 2, "Rock": 3, "Land": 1}),
                 lands_in_play=1,
                 rocks_in_play=3,
+                mana_available=1,
                 cumulative_mana_in_play=0.0,
                 compounded_mana_spent=0.0,
             ),

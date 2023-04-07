@@ -372,42 +372,17 @@ def castable_count(state: GameState, play: CardBag, card_name: str) -> int:
     return min(hand[card_name], mana_left(state, play) // card.cmc)
 
 
-def take_turn(state: GameState, turn: int) -> GameState:
-    # For turn_of_interest = 7, this range is {1, 2, ..., 7} so we
-    # consider mana spent over the first 7 turns
-    # compounded_mana_spent is what we return at the end
-    # At the start of every turn, we add to it the sum of mana values of
-    # all 1-drops, 2-drops, ..., 6-drops that we have cast thus far
-    # During the turn, we add to it the mana value of any 1-drop, 2-drop,
-    # ..., 6-drop we cast
-    # Note that mana rocks or card draw spells don't count towards this
-
-    state.untap()
-
-    # In Commander, you always draw a card, even when playing first
-    card_drawn = state.draw()
-
-    # Play a land if possible
+def choose_play(state: GameState, turn: int) -> CardBag:
     play = CardBag({"Land": min(1, state.hand["Land"])})
 
     mana_available_at_start_turn = state.mana_available
     we_cast_a_nonrock_spell_this_turn = False
 
-    logger.debug(
-        f"TURN {turn}. Card drawn {card_drawn}. {state.lands_in_play} "
-        f"lands, {state.rocks_in_play} rocks. Mana available "
-        f"{state.mana_available}. Cumulative mana {state.compounded_mana_spent}. "
-        f"Hand: {state.hand}"
-    )
-
     play = play.add("Sol Ring", castable_count(state, play, "Sol Ring"))
     if turn == 1 and mana_left(state, play) >= 2:
         # According to Frank Karsten's article, we can only play rocks
         # on Turn 1 if we play a Sol Ring
-        play = play.add("Rock", castable_count(state, play, "Rock"))
-        state.play_from_hand(play)
-        state.mana_available = 0
-        return state
+        return play.add("Rock", castable_count(state, play, "Rock"))
 
     if turn == 2:
         # Rocks get priority over spells early on
@@ -469,7 +444,38 @@ def take_turn(state: GameState, turn: int) -> GameState:
         and we_cast_a_nonrock_spell_this_turn
     ):
         play = play.add("Rock", 1)
-    state.play_from_hand(play)
+    return play
+
+
+def take_turn(state: GameState, turn: int) -> GameState:
+    # For turn_of_interest = 7, this range is {1, 2, ..., 7} so we
+    # consider mana spent over the first 7 turns
+    # compounded_mana_spent is what we return at the end
+    # At the start of every turn, we add to it the sum of mana values of
+    # all 1-drops, 2-drops, ..., 6-drops that we have cast thus far
+    # During the turn, we add to it the mana value of any 1-drop, 2-drop,
+    # ..., 6-drop we cast
+    # Note that mana rocks or card draw spells don't count towards this
+
+    state.untap()
+
+    # In Commander, you always draw a card, even when playing first
+    card_drawn = state.draw()
+
+    logger.debug(
+        f"TURN {turn}. Card drawn {card_drawn}. {state.lands_in_play} "
+        f"lands, {state.rocks_in_play} rocks. Mana available "
+        f"{state.mana_available}. Cumulative mana {state.compounded_mana_spent}. "
+        f"Hand: {state.hand}"
+    )
+
+    # Play a land if possible
+    state = state.play_from_hand(
+        choose_play(
+            state,
+            turn,
+        )
+    )
     logger.debug(
         f"After spells, mana available {state.mana_available}. Cumulative "
         f"mana {state.compounded_mana_spent}. Hand: {state.hand}"

@@ -100,6 +100,8 @@ def run_one_sim(
     )
 
     for turn in range(1, turn_of_interest + 1):
+        # For turn_of_interest = 7, this range is {1, 2, ..., 7} so we
+        # consider mana spent over the first 7 turns
         take_turn(state, turn)
 
     # Return lucky (True if you had Sol Ring on turn 1) to enable better rare

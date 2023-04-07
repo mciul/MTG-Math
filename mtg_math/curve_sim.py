@@ -242,6 +242,24 @@ class GameState:
     GameState is mutable - this is the sin of premature optimization
 
     For safety, mutation should only be done through methods
+
+    library is a list with the to card at index 0
+
+    hand, lands_in_play, and rocks_in_play are about what they sound like
+    (but a Sol Ring is represented by two rocks)
+
+    compounded_mana_spent is what we return at the end
+    At the start of every turn, we add to it the sum of mana values of
+    all 1-drops, 2-drops, ..., 6-drops that we have cast thus far
+    During the turn, we add to it the mana value of any 1-drop, 2-drop,
+    ..., 6-drop we cast
+
+    cumulative_mana_in_play represents all the mana we've spent to advance
+    the board state (mana rocks or card draw spells don't count towards this)
+    It's not used directly, just an intermediate value to calculate
+    compounding
+
+    mana_available represents untapped mana available for the turn
     """
 
     library: List[str]
@@ -392,6 +410,26 @@ def castable_count(state: GameState, play: CardBag, card_name: str) -> int:
     return min(hand[card_name], available // card.cmc)
 
 
+def play_one_rock_before_spell(
+    state: GameState, play: CardBag, optimal_spells: List[str]
+) -> CardBag:
+    """Play one rock if we can max out the remaining mana on a spell
+
+    We still want to ramp a bit, but keep it in check if we have a spell
+    we can play with all the remaining mana
+    """
+    if len(optimal_spells) < 2:
+        # there is no such spell with CMC = available_mana - 1
+        return play
+
+    if castable_count(state, play, optimal_spells[1]) < 1:
+        # we don't have it in hand
+        return play
+    # cast one rock now, we'll cast the spell later
+    castable_rock = min(1, castable_count(state, play, "Rock"))
+    return play.add("Rock", castable_rock)
+
+
 def play_two_drop_as_first_spell(
     state: GameState, play: CardBag, optimal_spells: List[str]
 ) -> CardBag:
@@ -402,7 +440,7 @@ def play_two_drop_as_first_spell(
     """
     # double-spelling with a 1-drop
     if len(optimal_spells) < 3:
-        # we don't have a spell with CMC=available mana - 2
+        # there is no such spell with CMC = available mana - 2
         return play
     if castable_count(state, play, optimal_spells[0]) > 0:
         # just cast the big one
@@ -422,6 +460,7 @@ def choose_play(state: GameState, turn: int) -> CardBag:
     play = CardBag({"Land": min(1, state.hand["Land"])})
 
     play = play.add("Sol Ring", castable_count(state, play, "Sol Ring"))
+
     if turn < 3:
         # early on, play lots of rocks
         play = play.add("Rock", castable_count(state, play, "Rock"))
@@ -433,13 +472,8 @@ def choose_play(state: GameState, turn: int) -> CardBag:
 
     optimal_spells = spells_in_descending_order(mana_left(state, play))
 
-    # On turn 3 or 4, cast one mana rock if we can max out the remaining
-    # mana on a spell
-    if turn in [3, 4] and len(optimal_spells) >= 2:
-        spell = optimal_spells[1]  # optimal CMC - 1
-        if castable_count(state, play, spell) >= 1:
-            castable_rock = min(1, castable_count(state, play, "Rock"))
-            play = play.add("Rock", castable_rock)
+    if turn in [3, 4]:
+        play = play_one_rock_before_spell(state, play, optimal_spells)
 
     if mana_left(state, play) <= 6:
         play = play_two_drop_as_first_spell(state, play, optimal_spells)
@@ -447,19 +481,11 @@ def choose_play(state: GameState, turn: int) -> CardBag:
     for spell in optimal_spells + ["Rock"]:
         if castable_count(state, play, spell) > 0:
             play = play.add(spell, castable_count(state, play, spell))
+
     return play
 
 
 def take_turn(state: GameState, turn: int) -> GameState:
-    # For turn_of_interest = 7, this range is {1, 2, ..., 7} so we
-    # consider mana spent over the first 7 turns
-    # compounded_mana_spent is what we return at the end
-    # At the start of every turn, we add to it the sum of mana values of
-    # all 1-drops, 2-drops, ..., 6-drops that we have cast thus far
-    # During the turn, we add to it the mana value of any 1-drop, 2-drop,
-    # ..., 6-drop we cast
-    # Note that mana rocks or card draw spells don't count towards this
-
     state.untap()
 
     # In Commander, you always draw a card, even when playing first
@@ -473,8 +499,10 @@ def take_turn(state: GameState, turn: int) -> GameState:
     )
 
     state = state.play_from_hand(choose_play(state, turn))
+
     logger.debug(
         f"After spells, mana available {state.mana_available}. Cumulative "
         f"mana {state.compounded_mana_spent}. Hand: {state.hand}"
     )
+
     return state

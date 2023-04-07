@@ -651,7 +651,7 @@ def test_cards_to_bottom_when_keeping_four(cards, bottom):
                 CardBag({"6 CMC": 2, "Rock": 2, "Land": 2}),
                 lands_in_play=1,
                 rocks_in_play=3,
-                mana_available=1
+                mana_available=1,
             ),
         ),
         (
@@ -1090,6 +1090,27 @@ def test_take_turn_two(starting_state, ending_state):
                 cumulative_mana_in_play=20.2,
                 compounded_mana_spent=approx(45.6),
             ),
+        ),
+        (
+            (
+                # 3 lands, one rock in play, no rocks in hand but 3 and 4 drop
+                # cast the 4 drop
+                GameState(
+                    ["5 CMC", "1 CMC"],
+                    CardBag({"3 CMC": 1, "4 CMC": 1}),
+                    lands_in_play=3,
+                    rocks_in_play=1,
+                ),
+                GameState(
+                    ["1 CMC"],
+                    CardBag({"3 CMC": 1, "5 CMC": 1}),
+                    lands_in_play=3,
+                    rocks_in_play=1,
+                    mana_available=0,
+                    cumulative_mana_in_play=4.0,
+                    compounded_mana_spent=4.0,
+                ),
+            )
         ),
     ],
 )

@@ -3,7 +3,7 @@ import random
 from collections import defaultdict, UserDict
 from dataclasses import dataclass, replace
 from itertools import product
-from typing import Dict, Generator, List, Tuple
+from typing import Dict, Generator, List, Tuple, Callable
 
 logger = logging.getLogger()
 
@@ -15,6 +15,44 @@ def nearby_values(start_value: int) -> Generator[int, None, None]:
     for value in range(max(start_value - 1, 0), start_value + 2):
         yield value
 
+
+@dataclass
+class Card:
+    name: str
+    cmc: int
+    mana_produced: int
+    value: float
+    effect: Callable[["GameState", int], "GameState"]
+
+
+def no_effect(state: "GameState", count: int) -> "GameState":
+    return state
+
+
+def add_land(state: "GameState", count: int) -> "GameState":
+    return state.play_land(count)
+
+
+def add_rocks(state: "GameState", count: int) -> "GameState":
+    return state.play_rocks(count)
+
+
+def add_sol_ring(state: "GameState", count: int) -> "GameState":
+    return state.play_rocks(count * 2)
+
+CARDS: Dict[str, Card] = {
+    "Land": Card("Land", 0, 1, 0.0, add_land),
+    "Sol Ring": Card("Sol Ring", 1, 2, 0.0, add_sol_ring),
+    "Rock": Card("Rock", 2, 1, 0.0, add_rocks),
+    "1 CMC": Card("1 CMC", 1, 0, 1.0, no_effect),
+    "2 CMC": Card("2 CMC", 2, 0, 2.0, no_effect),
+    "3 CMC": Card("3 CMC", 3, 0, 3.0, no_effect),
+    "4 CMC": Card("4 CMC", 4, 0, 4.0, no_effect),
+    "5 CMC": Card("5 CMC", 5, 0, 5.0, no_effect),
+    "6 CMC": Card("6 CMC", 6, 0, 6.2, no_effect),
+}
+
+# now it wouldn't be too hard to model draw effects!
 
 class CardBag(UserDict):
     def __setitem__(self, key: str, value: int):
@@ -215,33 +253,42 @@ class GameState:
         self.hand = self.hand.add(drawn, 1)
         return drawn
 
+    def play_land(self, count: int) -> "GameState":
+        self.lands_in_play += count
+        return self
+
+    def play_rocks(self, count: int) -> "GameState":
+        self.rocks_in_play += count
+        return self
+
+    def add_value(self, value: float) -> "GameState":
+        self.cumulative_mana_in_play += value
+        self.compounded_mana_spent += value
+        return self
+
     def play_from_hand(self, plays: CardBag) -> "GameState":
         """Update game state as if the card were played
 
-        Side effects: mutates game state by replacing hand
+        Side effects: mutates game state
+        - replaces hand
+        - updates mana available
+        - calls arbitrary methods based on card effect,
+          many of which have side effects
 
-        TODO: also update cards in play, mana spent, etc
+        Returns a game state so in theory it could create a new one
+        without mutating. That would probably be slow though.
         """
         self.hand -= plays
-        self.lands_in_play += plays["Land"]
-        self.mana_available += plays["Land"]
-        self.rocks_in_play += plays["Rock"]
-        self.mana_available -= plays["Rock"]
-        self.rocks_in_play += 2 * plays["Sol Ring"]
-        self.mana_available += plays["Sol Ring"]
-        value_added = 0
-        for cmc in range(1, 7):
-            count = plays[f"{cmc} CMC"]
-            self.mana_available -= count * cmc
-            if cmc == 6:
-                value_added += 6.2 * count
-            else:
-                value_added += cmc * count
-        self.cumulative_mana_in_play += value_added
-        self.compounded_mana_spent += value_added
+        new_state = self
+        for name, count in plays.items():
+            card = CARDS[name]
+            self.mana_available -= card.cmc * count
+            self.mana_available += card.mana_produced * count
+            new_state = card.effect(new_state, count)
+            new_state = new_state.add_value(card.value * count)
         # TODO: raise exception for negative mana available?
 
-        return self
+        return new_state
 
     def add_to_hand(self, selection: CardBag):
         self.hand += selection

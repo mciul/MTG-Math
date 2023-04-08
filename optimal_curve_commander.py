@@ -3,6 +3,8 @@ from itertools import product
 import random
 import logging
 
+random.seed(8)
+
 from mtg_math.curve_sim import (
     nearby_values,
     CurveTuple,
@@ -54,6 +56,10 @@ initial_curve = Curve(
     land=initial_land,
 )
 
+commanders = CardBag({})
+for commander_cost in commander_costs:
+    commanders.add(f"{commander_cost} CMC", 1)
+
 
 def shuffle_and_take_mulligans(decklist: CardBag) -> GameState:
     """Return the game state after finally keeping a hand"""
@@ -69,19 +75,7 @@ def shuffle_and_take_mulligans(decklist: CardBag) -> GameState:
     raise RuntimeError("We should never mulligan a 4-card hand")
 
 
-def add_commanders(state: GameState, commander_costs: List[int]) -> GameState:
-    """Put commanders in the game's 'hand'"""
-    state = shuffle_and_take_mulligans(decklist)
-    commanders = CardBag({})
-    for commander_cost in commander_costs:
-        commanders.add(f"{commander_cost} CMC", 1)
-    state.add_to_hand(commanders)
-    return state
-
-
-def run_one_sim(
-    decklist: CardBag, commander_costs: List[int]
-) -> Tuple[float, int]:
+def run_one_sim(decklist: CardBag, commanders: CardBag) -> Tuple[float, int]:
     # Initialize variables
     turn_of_interest = 7
     # draw_cost = 4  # Cost is 3 for Divination, 4 for Harmonize
@@ -90,7 +84,7 @@ def run_one_sim(
     # Draw opening hands and mulligan
     logger.debug("----------")
     state = shuffle_and_take_mulligans(decklist)
-    state = add_commanders(state, commander_costs)
+    state = state.add_to_hand(commanders)
     logger.debug(f"After adding commander: {state.hand}")
 
     lucky = (
@@ -193,7 +187,7 @@ while continue_searching:
                 total_mana_spent = 0.0
                 for _ in range(num_simulations):
                     (mana_spent_in_sim, lucky) = run_one_sim(
-                        decklist, commander_costs
+                        decklist, commanders
                     )
                     # Lucky is true for Sol Ring on turn 1. This
                     # could be used for clever variance

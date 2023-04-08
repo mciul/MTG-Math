@@ -133,7 +133,7 @@ def test_game_state_add_to_hand():
     state = GameState.start(curve.decklist)
     orig_hand = state.hand.copy()
     orig_2cmc = orig_hand["2 CMC"]
-    state.add_to_hand(CardBag({"2 CMC": 1}))
+    state = state.add_to_hand(CardBag({"2 CMC": 1}))
     assert state.hand["2 CMC"] == orig_2cmc + 1
     assert state.hand == orig_hand + CardBag({"2 CMC": 1})
 
@@ -1315,3 +1315,4 @@ def test_take_turn_three_or_four(starting_state, ending_state, turn):
 def test_take_turn_five_or_more(starting_state, ending_state, turn):
     state = deepcopy(starting_state)  # GameStates are mutable, so be careful
     assert take_turn(state, turn) == ending_state
+

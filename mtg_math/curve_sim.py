@@ -345,8 +345,9 @@ class GameState:
 
         return new_state
 
-    def add_to_hand(self, selection: CardBag):
+    def add_to_hand(self, selection: CardBag) -> GameState:
         self.hand += selection
+        return self
 
 
 def do_we_keep(hand: CardBag, cards_to_keep: int, free: bool = False) -> bool:

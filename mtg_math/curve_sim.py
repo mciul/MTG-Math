@@ -398,8 +398,8 @@ def castable_count(state: GameState, play: CardBag, card_name: str) -> int:
     don't consider mana available after playing the first one, just
     use the currently available mana
     """
-    hand = state.hand - play
-    if card_name not in hand.keys():
+    count = state.hand[card_name] - play[card_name]
+    if count < 1:
         return 0
     card = CARDS[card_name]
     available = mana_left(state, play)
@@ -407,7 +407,7 @@ def castable_count(state: GameState, play: CardBag, card_name: str) -> int:
         # maybe we can cast an extra rock before casting the nonrock spell
         available += 1
     # note - no protection against divide-by-zero (should never happen)
-    return min(hand[card_name], available // card.cmc)
+    return min(count, available // card.cmc)
 
 
 def play_one_rock_before_spell(
@@ -434,7 +434,6 @@ def play_two_drop_as_first_spell(
     state: GameState, play: CardBag, optimal_spells: List[str]
 ) -> CardBag:
     """play a two-drop if if we can't use all our mana on one big spell
-
     We prefer to double-spell with a two-drop rather than a one-drop,
     which is handled elsewhere
     """
@@ -446,7 +445,7 @@ def play_two_drop_as_first_spell(
         # just cast the big one
         return play
     if castable_count(state, play, "2 CMC") < 1:
-        # we don't have a 2 drop
+        # we don't have da 2 drop
         return play
     hypothetical = play.add("2 CMC", 1)
     if castable_count(state, hypothetical, optimal_spells[2]) < 1:

@@ -345,7 +345,7 @@ class GameState:
 
         return new_state
 
-    def add_to_hand(self, selection: CardBag) -> GameState:
+    def add_to_hand(self, selection: CardBag) -> "GameState":
         self.hand += selection
         return self
 

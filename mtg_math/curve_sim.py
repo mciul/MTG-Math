@@ -1,5 +1,6 @@
 import logging
 import random
+from functools import lru_cache
 from collections import defaultdict, UserDict
 from dataclasses import dataclass, replace
 from itertools import product
@@ -57,17 +58,20 @@ def add_sol_ring(state: "GameState", count: int) -> "GameState":
     return state.play_rocks(count * 2)
 
 
-CARDS: Dict[str, Card] = {
-    "Land": Card("Land", 0, 1, 0.0, add_land),
-    "Sol Ring": Card("Sol Ring", 1, 2, 0.0, add_sol_ring),
-    "Rock": Card("Rock", 2, 1, 0.0, add_rocks),
-    "1 CMC": Card("1 CMC", 1, 0, 1.0, no_effect),
-    "2 CMC": Card("2 CMC", 2, 0, 2.0, no_effect),
-    "3 CMC": Card("3 CMC", 3, 0, 3.0, no_effect),
-    "4 CMC": Card("4 CMC", 4, 0, 4.0, no_effect),
-    "5 CMC": Card("5 CMC", 5, 0, 5.0, no_effect),
-    "6 CMC": Card("6 CMC", 6, 0, 6.2, no_effect),
-}
+CARD_TYPES: List[Card] = [
+    Card("Land", 0, 1, 0.0, add_land),
+    Card("Sol Ring", 1, 2, 0.0, add_sol_ring),
+    Card("Rock", 2, 1, 0.0, add_rocks),
+    Card("1 CMC", 1, 0, 1.0, no_effect),
+    Card("2 CMC", 2, 0, 2.0, no_effect),
+    Card("3 CMC", 3, 0, 3.0, no_effect),
+    Card("4 CMC", 4, 0, 4.0, no_effect),
+    Card("5 CMC", 5, 0, 5.0, no_effect),
+    Card("6 CMC", 6, 0, 6.2, no_effect),
+]
+
+CARD_NAMES = [card.name for card in CARD_TYPES]
+CARDS: Dict[str, Card] = {card.name: card for card in CARD_TYPES}
 
 CARDS_BY_CMC: Dict[int, str] = defaultdict(
     str, {card.cmc: card.name for card in CARDS.values() if card.cmc > 0}
@@ -105,7 +109,17 @@ class CardBag(UserDict):
             {card: max(0, count - other[card]) for card, count in self.items()}
         )
 
+    def __hash__(self) -> int:
+        return hash((tuple(self[name] for name in CARD_NAMES)))
+
     def add(self, card: str, count: int) -> "CardBag":
+        """return a Cardbag with the card count increased
+
+        we will return a mutated version of self here because
+        creating a new CardBag is slow. So be cautious...
+        """
+        self[card] += count
+        return self
         return CardBag({**self.data, card: self[card] + count})
 
     def net_mana_cost(self) -> int:
@@ -389,8 +403,35 @@ def cards_to_bottom(hand: CardBag, count: int) -> CardBag:
     return bottom
 
 
+def mana_left_for(mana_available: int, play: CardBag) -> int:
+    return mana_available - play.net_mana_cost()
+
+
 def mana_left(state: GameState, play: CardBag) -> int:
+    return mana_left_for(state.mana_available, play)
     return state.mana_available - play.net_mana_cost()
+
+
+def max_playable(card: Card, in_hand: int, mana_available: int) -> int:
+    if card.cmc == 0:  # Land
+        return min(1, in_hand)
+    return min(in_hand, mana_available // card.cmc)
+
+
+def castable_count_for(
+    hand: CardBag, play: CardBag, card_name: str, starting_mana: int
+) -> int:
+    in_hand = hand[card_name] - play[card_name]
+    if in_hand < 1:
+        return 0
+    mana_available = mana_left_for(starting_mana, play)
+    card = CARDS[card_name]
+    if card.mana_produced == 1 and play.includes_nonrock():
+        # maybe we can cast an extra rock before casting the nonrock spell
+        mana_available += 1
+    # note - no protection against divide-by-zero (should never happen)
+    return max_playable(card, in_hand, mana_available)
+    return min(in_hand, mana_available // card.cmc)
 
 
 def castable_count(state: GameState, play: CardBag, card_name: str) -> int:
@@ -399,6 +440,9 @@ def castable_count(state: GameState, play: CardBag, card_name: str) -> int:
     don't consider mana available after playing the first one, just
     use the currently available mana
     """
+    return castable_count_for(
+        state.hand, play, card_name, state.mana_available
+    )
     count = state.hand[card_name] - play[card_name]
     if count < 1:
         return 0
@@ -412,7 +456,7 @@ def castable_count(state: GameState, play: CardBag, card_name: str) -> int:
 
 
 def play_one_rock_before_spell(
-    state: GameState, play: CardBag, optimal_spells: List[str]
+    hand: CardBag, starting_mana: int, play: CardBag, optimal_spells: List[str]
 ) -> CardBag:
     """Play one rock if we can max out the remaining mana on a spell
 
@@ -420,19 +464,21 @@ def play_one_rock_before_spell(
     we can play with all the remaining mana
     """
     if len(optimal_spells) < 2:
-        # there is no such spell with CMC = available_mana - 1
+        # there is no such spell with CMC = mana_available - 1
         return play
 
-    if castable_count(state, play, optimal_spells[1]) < 1:
+    if castable_count_for(hand, play, optimal_spells[1], starting_mana) < 1:
         # we don't have it in hand
         return play
     # cast one rock now, we'll cast the spell later
-    castable_rock = min(1, castable_count(state, play, "Rock"))
+    castable_rock = min(
+        1, castable_count_for(hand, play, "Rock", starting_mana)
+    )
     return play.add("Rock", castable_rock)
 
 
 def play_two_drop_as_first_spell(
-    state: GameState, play: CardBag, optimal_spells: List[str]
+    hand: CardBag, starting_mana: int, play: CardBag, optimal_spells: List[str]
 ) -> CardBag:
     """play a two-drop if if we can't use all our mana on one big spell
     We prefer to double-spell with a two-drop rather than a one-drop,
@@ -442,46 +488,84 @@ def play_two_drop_as_first_spell(
     if len(optimal_spells) < 3:
         # there is no such spell with CMC = available mana - 2
         return play
-    if castable_count(state, play, optimal_spells[0]) > 0:
+    if castable_count_for(hand, play, optimal_spells[0], starting_mana) > 0:
         # just cast the big one
         return play
-    if castable_count(state, play, "2 CMC") < 1:
+    if castable_count_for(hand, play, "2 CMC", starting_mana) < 1:
         # we don't have da 2 drop
         return play
-    hypothetical = play.add("2 CMC", 1)
-    if castable_count(state, hypothetical, optimal_spells[2]) < 1:
+    hypothetical = play.copy().add("2 CMC", 1)
+    if (
+        castable_count_for(
+            hand, hypothetical, optimal_spells[2], starting_mana
+        )
+        < 1
+    ):
         # we can't cast the second spell
         return play
     # ok, let's do it
     return hypothetical
 
 
-def choose_play(state: GameState, turn: int) -> CardBag:
-    play = CardBag({"Land": min(1, state.hand["Land"])})
+@lru_cache(maxsize=8192)
+def choose_play_for(hand: CardBag, mana_available: int, turn: int) -> CardBag:
+    play = CardBag({"Land": min(1, hand["Land"])})
 
-    play = play.add("Sol Ring", castable_count(state, play, "Sol Ring"))
+    play = play.add(
+        "Sol Ring",
+        castable_count_for(hand, play, "Sol Ring", mana_available),
+    )
 
     if turn < 3:
         # early on, play lots of rocks
-        play = play.add("Rock", castable_count(state, play, "Rock"))
+        play = play.add(
+            "Rock",
+            castable_count_for(hand, play, "Rock", mana_available),
+        )
 
     if turn == 1 and play["Sol Ring"] > 0:
         # According to Frank Karsten's article, we can't cast nonrock spells
         # on Turn 1 if we played a Sol Ring
         return play
 
-    optimal_spells = spells_in_descending_order(mana_left(state, play))
+    optimal_spells = spells_in_descending_order(
+        mana_left_for(mana_available, play)
+    )
 
     if turn in [3, 4]:
-        play = play_one_rock_before_spell(state, play, optimal_spells)
+        play = play_one_rock_before_spell(
+            hand, mana_available, play, optimal_spells
+        )
 
-    if mana_left(state, play) <= 6:
-        play = play_two_drop_as_first_spell(state, play, optimal_spells)
+    if mana_left_for(mana_available, play) <= 6:
+        play = play_two_drop_as_first_spell(
+            hand, mana_available, play, optimal_spells
+        )
 
     for spell in optimal_spells + ["Rock"]:
-        play = play.add(spell, castable_count(state, play, spell))
+        play = play.add(
+            spell, castable_count_for(hand, play, spell, mana_available)
+        )
 
     return play
+
+
+def choose_play(state: GameState, turn: int) -> CardBag:
+    mana_increase = min(1, state.hand["Land"]) + state.hand["Sol Ring"]
+    simplified_hand = CardBag(
+        {
+            cardname: max_playable(
+                CARDS[cardname],
+                state.hand[cardname],
+                state.mana_available + mana_increase,
+            )
+            for cardname in CARD_NAMES
+        }
+    )
+    simplified_turn = 3 if turn == 4 else min(turn, 5)
+    return choose_play_for(
+        simplified_hand, state.mana_available, simplified_turn
+    )
 
 
 def take_turn(state: GameState, turn: int) -> GameState:

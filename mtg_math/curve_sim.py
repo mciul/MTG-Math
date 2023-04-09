@@ -551,20 +551,9 @@ def choose_play_for(hand: CardBag, mana_available: int, turn: int) -> CardBag:
 
 
 def choose_play(state: GameState, turn: int) -> CardBag:
-    mana_increase = min(1, state.hand["Land"]) + state.hand["Sol Ring"]
-    simplified_hand = CardBag(
-        {
-            cardname: max_playable(
-                CARDS[cardname],
-                state.hand[cardname],
-                state.mana_available + mana_increase,
-            )
-            for cardname in CARD_NAMES
-        }
-    )
     simplified_turn = 3 if turn == 4 else min(turn, 5)
     return choose_play_for(
-        simplified_hand, state.mana_available, simplified_turn
+        state.hand, state.mana_available, simplified_turn
     )
 
 

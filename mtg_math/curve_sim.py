@@ -562,3 +562,11 @@ def take_turn(state: GameState, turn: int) -> GameState:
     )
 
     return state
+
+def take_turns(state: GameState, turn_of_interest: int) -> GameState:
+    for turn in range(1, turn_of_interest + 1):
+        # For turn_of_interest = 7, this range is {1, 2, ..., 7} so we
+        # consider mana spent over the first 7 turns
+        state = take_turn(state, turn)
+
+    return state

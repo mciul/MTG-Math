@@ -11,6 +11,7 @@ from mtg_math.curve_sim import (
     cards_to_bottom,
     do_we_keep,
     take_turn,
+    take_turns,
 )
 
 logger = logging.getLogger()
@@ -1330,3 +1331,114 @@ def test_take_turn_three_or_four(starting_state, ending_state, turn):
 def test_take_turn_five_or_more(starting_state, ending_state, turn):
     state = deepcopy(starting_state)  # GameStates are mutable, so be careful
     assert take_turn(state, turn) == ending_state
+
+
+@mark.parametrize(
+    "starting_state,ending_state",
+    [
+        (
+            GameState(
+                ["Land", "Rock", "Land", "3 CMC", "1 CMC", "Land", "Land"],
+                CardBag({"4 CMC": 2, "6 CMC": 1, "Land": 3}),
+            ),
+            GameState(
+                [],
+                CardBag({}),
+                lands_in_play=7,
+                rocks_in_play=1,
+                mana_available=8,
+                compounded_mana_spent=approx(62.6),
+                cumulative_mana_in_play=approx(18.2),
+            ),
+        ),
+        (
+            GameState(
+                ["5 CMC", "Land", "1 CMC", "Land", "Land", "Land", "Land"],
+                CardBag({"4 CMC": 1, "5 CMC": 5, "Land": 2}),
+            ),
+            GameState(
+                [],
+                CardBag({"5 CMC": 3}),
+                lands_in_play=7,
+                mana_available=2,
+                compounded_mana_spent=approx(51.0),
+                cumulative_mana_in_play=approx(20.0),
+            ),
+        ),
+        (
+            GameState(
+                ["Rock", "Land", "1 CMC", "3 CMC", "6 CMC", "2 CMC", "4 CMC"],
+                CardBag({"6 CMC": 2, "Rock": 2, "Sol Ring": 1, "Land": 3}),
+            ),
+            GameState(
+                [],
+                CardBag({}),
+                lands_in_play=4,
+                rocks_in_play=5,
+                mana_available=5,
+                compounded_mana_spent=approx(99.4),
+                cumulative_mana_in_play=approx(28.6),
+            ),
+        ),
+        (
+            GameState(
+                ["2 CMC", "3 CMC", "2 CMC", "Land", "Land", "4 CMC", "1 CMC"],
+                CardBag({"1 CMC": 1, "2 CMC": 3, "Land": 3}),
+            ),
+            GameState(
+                [],
+                CardBag({}),
+                lands_in_play=5,
+                mana_available=4,
+                compounded_mana_spent=approx(71.0),
+                cumulative_mana_in_play=approx(19.0),
+            ),
+        ),
+        (
+            GameState(
+                ["2 CMC", "3 CMC", "Land", "Land", "5 CMC", "6 CMC", "Land"],
+                CardBag({"1 CMC": 2, "Sol Ring": 1, "2 CMC": 3, "Land": 1}),
+            ),
+            GameState(
+                [],
+                CardBag({}),
+                lands_in_play=4,
+                rocks_in_play=2,
+                mana_available=0,
+                compounded_mana_spent=approx(81.2),
+                cumulative_mana_in_play=approx(24.2),
+            ),
+        ),
+        (
+            GameState(
+                ["Rock", "3 CMC", "4 CMC", "1 CMC", "Land", "1 CMC", "1 CMC"],
+                CardBag({"1 CMC": 2, "Sol Ring": 1, "Rock": 3, "Land": 2}),
+            ),
+            GameState(
+                [],
+                CardBag({}),
+                lands_in_play=3,
+                rocks_in_play=6,
+                mana_available=8,
+                compounded_mana_spent=approx(55.0),
+                cumulative_mana_in_play=approx(12.0),
+            ),
+        ),
+        (
+            GameState(
+                ["Rock", "Land", "1 CMC", "4 CMC", "Land", "2 CMC", "Land"],
+                CardBag({"1 CMC": 3, "Rock": 2}),
+            ),
+            GameState(
+                [],
+                CardBag({}),
+                lands_in_play=3,
+                rocks_in_play=3,
+                compounded_mana_spent=approx(26.0),
+                cumulative_mana_in_play=approx(10.0),
+            ),
+        ),
+    ],
+)
+def test_take_all_turns(starting_state, ending_state):
+    assert take_turns(deepcopy(starting_state), 7) == ending_state

@@ -18,7 +18,7 @@ from mtg_math.curve_sim import (
 
 logger = logging.getLogger()
 # to enable debug:
-logging.basicConfig(level=logging.INFO)
+# logging.basicConfig(level=logging.DEBUG)
 
 # Manually adjust these parameters to set the deck type and an initial guess
 # for where to start searching
@@ -40,7 +40,7 @@ initial_draw = 0
 # num_simulations = 10000
 # initial_num_simulations = 100
 # target_num_simulations = 200000
-target_num_simulations = 2000
+target_num_simulations = 200
 initial_num_simulations = target_num_simulations // 20
 
 
@@ -58,8 +58,7 @@ initial_curve = Curve(
 
 commanders = CardBag({})
 for commander_cost in commander_costs:
-    commanders.add(f"{commander_cost} CMC", 1)
-
+    commanders = commanders.add(f"{commander_cost} CMC", 1)
 
 def shuffle_and_take_mulligans(decklist: CardBag) -> GameState:
     """Return the game state after finally keeping a hand"""
@@ -85,7 +84,7 @@ def run_one_sim(decklist: CardBag, commanders: CardBag) -> Tuple[float, int]:
     logger.debug("----------")
     state = shuffle_and_take_mulligans(decklist)
     state = state.add_to_hand(commanders)
-    logger.debug(f"After adding commander: {state.hand}")
+    logger.debug(f"After adding commander {commanders}: {state.hand}")
 
     lucky = (
         1

@@ -120,7 +120,6 @@ class CardBag(UserDict):
         """
         self[card] += count
         return self
-        return CardBag({**self.data, card: self[card] + count})
 
     def net_mana_cost(self) -> int:
         cost = 0
@@ -339,13 +338,16 @@ class GameState:
         """Update game state as if the card were played
 
         Side effects: mutates game state
-        - replaces hand
+        - replaces  hand
         - updates mana available
         - calls arbitrary methods based on card effect,
           many of which have side effects
 
         Returns a game state so in theory it could create a new one
         without mutating. That would probably be slow though.
+
+        For some reason mutating the hand turned out to be even slower
+        than replacing it... not sure why
         """
         self.hand -= plays
         new_state = self
@@ -407,11 +409,6 @@ def mana_left_for(mana_available: int, play: CardBag) -> int:
     return mana_available - play.net_mana_cost()
 
 
-def mana_left(state: GameState, play: CardBag) -> int:
-    return mana_left_for(state.mana_available, play)
-    return state.mana_available - play.net_mana_cost()
-
-
 def max_playable(card: Card, in_hand: int, mana_available: int) -> int:
     if card.cmc == 0:  # Land
         return min(1, in_hand)
@@ -431,28 +428,6 @@ def castable_count_for(
         mana_available += 1
     # note - no protection against divide-by-zero (should never happen)
     return max_playable(card, in_hand, mana_available)
-    return min(in_hand, mana_available // card.cmc)
-
-
-def castable_count(state: GameState, play: CardBag, card_name: str) -> int:
-    """how many of `card_name` can we play if we've already made `play`
-
-    don't consider mana available after playing the first one, just
-    use the currently available mana
-    """
-    return castable_count_for(
-        state.hand, play, card_name, state.mana_available
-    )
-    count = state.hand[card_name] - play[card_name]
-    if count < 1:
-        return 0
-    card = CARDS[card_name]
-    available = mana_left(state, play)
-    if card.mana_produced == 1 and play.includes_nonrock():
-        # maybe we can cast an extra rock before casting the nonrock spell
-        available += 1
-    # note - no protection against divide-by-zero (should never happen)
-    return min(count, available // card.cmc)
 
 
 def play_one_rock_before_spell(
@@ -552,9 +527,7 @@ def choose_play_for(hand: CardBag, mana_available: int, turn: int) -> CardBag:
 
 def choose_play(state: GameState, turn: int) -> CardBag:
     simplified_turn = 3 if turn == 4 else min(turn, 5)
-    return choose_play_for(
-        state.hand, state.mana_available, simplified_turn
-    )
+    return choose_play_for(state.hand, state.mana_available, simplified_turn)
 
 
 def take_turn(state: GameState, turn: int) -> GameState:
@@ -563,18 +536,26 @@ def take_turn(state: GameState, turn: int) -> GameState:
     # In Commander, you always draw a card, even when playing first
     card_drawn = state.draw()
 
+    # I think maybe f-strings in logger statements slow us down
     logger.debug(
-        f"TURN {turn}. Card drawn {card_drawn}. {state.lands_in_play} "
-        f"lands, {state.rocks_in_play} rocks. Mana available "
-        f"{state.mana_available}. Cumulative mana {state.compounded_mana_spent}. "
-        f"Hand: {state.hand}"
+        "TURN %d. Card drawn %s. %d lands, %d rocks. Mana available %d. "
+        "Cumulative mana %d. Hand: %s",
+        turn,
+        card_drawn,
+        state.lands_in_play,
+        state.rocks_in_play,
+        state.mana_available,
+        state.compounded_mana_spent,
+        state.hand,
     )
 
     state = state.play_from_hand(choose_play(state, turn))
 
     logger.debug(
-        f"After spells, mana available {state.mana_available}. Cumulative "
-        f"mana {state.compounded_mana_spent}. Hand: {state.hand}"
+        "After spells, mana available %d. Cumulative mana %d. Hand: %s",
+        state.mana_available,
+        state.compounded_mana_spent,
+        state.hand,
     )
 
     return state

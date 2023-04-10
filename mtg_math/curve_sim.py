@@ -288,7 +288,10 @@ class GameState:
         library = []
         for card, count in decklist.items():
             library += [card] * count
-        random.shuffle(library)
+        # random.shuffle(library)
+        # shuffling seems to take a lot of time, but we only need 14
+        # cards to play a game - what if we only take 14?
+        library = random.sample(library, 14)
         hand = CardBag({})
         for _ in range(7):
             card = library.pop(0)

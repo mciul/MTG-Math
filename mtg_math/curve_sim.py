@@ -482,7 +482,7 @@ def play_two_drop_as_first_spell(
     return hypothetical
 
 
-@lru_cache(maxsize=8192)
+@lru_cache(maxsize=32768)
 def choose_play_for(hand: CardBag, mana_available: int, turn: int) -> CardBag:
     play = CardBag({"Land": min(1, hand["Land"])})
 
